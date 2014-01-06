@@ -5,17 +5,22 @@ This program draws an array of conifers with variations of parameters.
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > import Conifer
-> import Diagrams.Prelude hiding (render)
+> import Diagrams.Prelude
 > import Diagrams.Backend.SVG.CmdLine
 > import Diagrams.ThreeD.Types
 > import Data.Default.Class
 
+**Main Program**
+
 Run the program with `dist/build/comparison/comparison -o comparison.svg -w 800` 
 where `-o` sets the output filename, and `-w` sets the diagram width.
 
-> main           = defaultMain (example # centerXY # pad 1.2)
-> render         = drawTree origin . projectTreeXZ . toAbsoluteTree origin
-> treeAtAge tp a = render (tree (tp { tpAge = a }))
+> main = defaultMain (example # withGrid # centerXY # pad 1.2)
+
+**Selected Comparison**
+
+Uncomment one at a time and recompile with `cabal build`
+or `ghc --make comparison.lhs`.
 
 > example = 
 > --    trunkLength_Whorls
@@ -24,7 +29,40 @@ where `-o` sets the output filename, and `-w` sets the diagram width.
 > --    branchLength_branchAngle
 >     centerBranchLength_sideBranchLength
 
-A starting point for variations.
+**Layout**
+
+Create an array of background cells sized to fit the largest of a list
+of diagrams, where _n_ is the cells per row, and _bg_ is the background.
+
+> gridLayout n bg ds = grid # centerXY
+>     where
+>         grid    = foldr1 (===) rows
+>         rows    = map (foldr1 (|||)) boxes
+>         boxes   = chunk n ds''
+>         ds''    = zipWith (<>) ds' (repeat box)
+>         ds'     = map (pad 1.1 . centerXY) ds
+>         box     = bg # scale boxSize
+>         boxSize = boxAll ds'
+>         boxAll  = maximum . (map box1)
+>         box1 d  = map (flip diameter d) [unitX, unitY] # maximum
+
+> chunk n [] = []
+> chunk n xs = take n xs : chunk n (drop n xs)
+
+An arrangement specialized for all our samples, which are 3 _x_ 3.
+
+> withGrid   = gridLayout 3 bg
+>     where bg = square 1 # lw 0.1 # lc black # centerXY # pad 1.1
+
+**Helper Functions**
+
+Draw a tree with the given parameters but overridden with the specified age.
+
+> treeAtAge tp a = renderTree (tree (tp { tpAge = a }))
+
+**Comparisons**
+
+All comparisons will make alterations to the following set of parameters.
 
 > tp :: TreeParams
 > tp = def {
@@ -42,28 +80,9 @@ A starting point for variations.
 >     , tpBranchBranchAngle        = tau / 8
 >     }
 
-> gridLayout n e ds = grid # centerXY
->     where
->         grid    = foldr1 (===) rows
->         rows    = map (foldr1 (|||)) boxes
->         boxes   = chunk n ds''
->         ds''    = zipWith (<>) ds' (repeat box)
->         ds'     = map (pad 1.1 . centerXY) ds
->         box     = e # scale boxSize
->         boxSize = boxAll ds'
->         boxAll  = maximum . (map box1)
->         box1 d  = map (flip diameter d) [unitX, unitY] # maximum
-
-> chunk n [] = []
-> chunk n xs = take n xs : chunk n (drop n xs)
-
-> background = square 1 # lw 0.1 # lc black # centerXY # pad 1.1
-
-A sample of comparisons.
-
 Trunk length vs. whorls per year
 
-> trunkLength_Whorls = trees # gridLayout 3 background
+> trunkLength_Whorls = trees
 >     where f tp x y = tp { tpTrunkLengthIncrement = x
 >                         , tpWhorlsPerYear        = y
 >                         }
@@ -72,19 +91,19 @@ Trunk length vs. whorls per year
 
 Trunk length vs. trunk-branch angles
 
-> trunkLength_trunkBranchAngles = trees # gridLayout 3 background
+> trunkLength_trunkBranchAngles = trees
 >     where f tp x y = tp { tpTrunkLengthIncrement = x
 >                         , tpTrunkBranchAngles    = y
 >                         }
 >           trees = [ treeAtAge (f tp x y) 2 
->                       | x <- [ 1.5, 2.0, 2.5 ], 
->                         y <- [ [tau / 8, tau / 5.5,  tau / 6.8, tau / 6.2 ]
+>                       | x <- [ 1.5, 2.0, 2.5 ]
+>                       , y <- [ [tau / 8, tau / 5.5,  tau / 6.8, tau / 6.2 ]
 >                              , [tau / 9, tau / 5,    tau / 7.2, tau / 6.2 ]
 >                              , [tau / 10, tau / 4.5, tau / 6.5, tau / 5.8 ]] ]
 
 Whorls per year vs whorl size.
 
-> whorls_whorlSize = trees # gridLayout 3 background
+> whorls_whorlSize = trees
 >     where f tp x y = tp { tpTrunkLengthIncrement = 2.0
 >                         , tpTrunkBranchAngles    = [ tau / 10,  tau / 4.5
 >                                                    , tau / 6.5, tau / 5.8 ]
@@ -96,7 +115,7 @@ Whorls per year vs whorl size.
 
 Side-subbranch length vs. Side-subbranch angle
 
-> branchLength_branchAngle = trees # gridLayout 3 background
+> branchLength_branchAngle = trees
 >     where f tp x y = tp { tpTrunkLengthIncrement     = 2.0
 >                         , tpTrunkBranchAngles        = [ tau / 6.5, tau / 5.8
 >                                                        , tau / 10,  tau / 4.5 ]
@@ -111,7 +130,7 @@ Side-subbranch length vs. Side-subbranch angle
 
 Center-subbranch length vs. Side-subbranch length
 
-> centerBranchLength_sideBranchLength = trees # gridLayout 3 background
+> centerBranchLength_sideBranchLength = trees
 >     where f tp x y = tp { tpTrunkLengthIncrement     = 2.0
 >                         , tpTrunkBranchAngles        = [ tau / 6.5, tau / 5.8
 >                                                        , tau / 10,  tau / 4.5 ]

@@ -350,3 +350,7 @@ trapezoid for a tapered trunk segment.
 > withGirth :: Int -> Double -> (Diagram B R2 -> Diagram B R2)
 > withGirth a g = lw (girth a g)
 
+**Rendering a Tree from Parameters**
+
+> renderTree = drawTree origin . projectTreeXZ . toAbsoluteTree origin
+

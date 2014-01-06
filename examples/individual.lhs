@@ -5,7 +5,7 @@ This program draws the conifer with the specified values.
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > import Conifer
-> import Diagrams.Prelude hiding (render)
+> import Diagrams.Prelude
 > import Diagrams.Backend.SVG.CmdLine
 > import Diagrams.ThreeD.Types
 > import Data.Default.Class
@@ -13,8 +13,7 @@ This program draws the conifer with the specified values.
 Run the program with `dist/build/individual/individual -o individual.svg -w 400` 
 where `-o` sets the output filename, and `-w` sets the diagram width.
 
-> main   = defaultMain (render (tree tp) # centerXY # pad 1.2)
-> render = drawTree origin . projectTreeXZ . toAbsoluteTree origin
+> main   = defaultMain (renderTree (tree tp) # centerXY # pad 1.2)
 
 > tp = def {
 >       tpAge                      = 2
