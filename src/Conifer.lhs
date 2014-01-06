@@ -352,5 +352,5 @@ trapezoid for a tapered trunk segment.
 
 **Rendering a Tree from Parameters**
 
-> renderTree = drawTree origin . projectTreeXZ . toAbsoluteTree origin
+> renderTree = drawTree origin . projectTreeXZ . toAbsoluteTree origin . tree
 
