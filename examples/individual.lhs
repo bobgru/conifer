@@ -1,11 +1,11 @@
 A Individual Conifer
 ====================
 
-This program draws the conifer with all its default values.
+This program draws the conifer with the specified values.
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > import Conifer
-> import Diagrams.Prelude
+> import Diagrams.Prelude hiding (render)
 > import Diagrams.Backend.SVG.CmdLine
 > import Diagrams.ThreeD.Types
 > import Data.Default.Class
@@ -13,9 +13,8 @@ This program draws the conifer with all its default values.
 Run the program with `dist/build/individual/individual -o individual.svg -w 400` 
 where `-o` sets the output filename, and `-w` sets the diagram width.
 
-> main  = defaultMain (tree' tp # centerXY # pad 1.2)
-
-> tree' = drawTree origin . projectTreeXZ . toAbsoluteTree origin . tree
+> main   = defaultMain (render (tree tp) # centerXY # pad 1.2)
+> render = drawTree origin . projectTreeXZ . toAbsoluteTree origin
 
 > tp = def {
 >       tpAge                      = 2

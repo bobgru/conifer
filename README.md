@@ -28,7 +28,7 @@ a plane for rendering.
 
 Example programs show how to draw an individual tree, and an array of them.
 There is also an example (under development) to draw a legend to describe
-the meaning of the parameters. To show what I'm looking for, include a hand-drawn
+the meaning of the parameters. To show what I'm looking for, I include a hand-drawn
 legend below, inspired by an image from _The Self-Made Tapestry_ by Philip Ball.
 
 Sadly, the trees appear dead, because I have yet to figure out how to use
