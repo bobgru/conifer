@@ -352,5 +352,6 @@ trapezoid for a tapered trunk segment.
 
 **Rendering a Tree from Parameters**
 
+> renderTree :: TreeParams -> Diagram B R2
 > renderTree = drawTree origin . projectTreeXZ . toAbsoluteTree origin . tree
 
