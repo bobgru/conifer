@@ -7,7 +7,6 @@ This program draws an array of conifers with variations of parameters.
 > import Conifer
 > import Diagrams.Prelude
 > import Diagrams.Backend.SVG.CmdLine
-> import Diagrams.ThreeD.Types
 > import Data.Default.Class
 
 **Main Program**

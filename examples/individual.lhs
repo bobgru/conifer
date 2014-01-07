@@ -1,5 +1,5 @@
-A Individual Conifer
-====================
+An Individual Conifer
+=====================
 
 This program draws the conifer with the specified values.
 
@@ -7,7 +7,6 @@ This program draws the conifer with the specified values.
 > import Conifer
 > import Diagrams.Prelude
 > import Diagrams.Backend.SVG.CmdLine
-> import Diagrams.ThreeD.Types
 > import Data.Default.Class
 
 Run the program with `dist/build/individual/individual -o individual.svg -w 400` 
