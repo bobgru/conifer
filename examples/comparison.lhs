@@ -7,7 +7,6 @@ This program draws an array of conifers with variations of parameters.
 > import Conifer
 > import Diagrams.Prelude
 > import Diagrams.Backend.SVG.CmdLine
-> import Diagrams.ThreeD.Types
 > import Data.Default.Class
 
 **Main Program**
@@ -43,8 +42,8 @@ of diagrams, where _n_ is the cells per row, and _bg_ is the background.
 >         ds'     = map (pad 1.1 . centerXY) ds
 >         box     = bg # scale boxSize
 >         boxSize = boxAll ds'
->         boxAll  = maximum . (map box1)
->         box1 d  = map (flip diameter d) [unitX, unitY] # maximum
+>         boxAll  = maximum . map box1
+>         box1 d  = map (`diameter` d) [unitX, unitY] # maximum
 
 > chunk n [] = []
 > chunk n xs = take n xs : chunk n (drop n xs)
