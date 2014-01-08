@@ -53,35 +53,23 @@ length of trunk, meanwhile adding another level of branching to existing branche
 >     , tpBranchBranchAngle        = tau / 6
 >     }
 
-A tree rises from its origin to its `t3Node` where there is optionally
+A tree rises from its origin to its `tNode` where there is optionally
 another tree, and—every year after the first—a whorl. The tree may
 grow additional whorls during a year, which are spaced evenly up the
-trunk. The tree grows as type `Tree3`, but is projected  to `Tree2`
+trunk. The tree grows as type `RTree3`, but is projected  to `ATree2`
 before rendering as a diagram.
 
-> data Tree3 = Tree3 {
->       t3Node     :: P3
->     , t3Age      :: Int
->     , t3Girth    :: Double
->     , t3Next     :: Maybe Tree3
->     , t3Whorls   :: [Whorl3]
+> data Tree a = Tree {
+>       tNode     :: a
+>     , tAge      :: Int
+>     , tGirth    :: Double
+>     , tNext     :: Maybe (Tree a)
+>     , tWhorls   :: [Whorl a]
 >     } deriving (Show, Eq)
 
-> data ATree3 = ATree3 {
->       at3Node     :: P3
->     , at3Age      :: Int
->     , at3Girth    :: Double
->     , at3Next     :: Maybe ATree3
->     , at3Whorls   :: [AWhorl3]
->     } deriving (Show, Eq)
-
-> data Tree2 = Tree2 {
->       t2Node     :: P2
->     , t2Age      :: Int
->     , t2Girth    :: Double
->     , t2Next     :: Maybe Tree2
->     , t2Whorls   :: [Whorl2]
->     } deriving (Show, Eq)
+> type RTree3 = Tree P3
+> type ATree3 = Tree P3
+> type ATree2 = Tree P2
 
 A whorl is a collection of branches radiating evenly spaced from 
 the trunk but at varying angles relative to the trunk. 
@@ -89,63 +77,41 @@ There can be multiple whorls per year, so a whorl records its position
 along that year's segment of trunk and a scale factor, so that older 
 whorls can have longer branches than younger ones. 
 
-> data Whorl3 = Whorl3 {
->       w3Node     :: P3
->     , w3Scale    :: Double
->     , w3Branches :: [Branch3]
+> data Whorl a = Whorl {
+>       wNode     :: a
+>     , wScale    :: Double
+>     , wBranches :: [Branch a]
 >     } deriving (Show, Eq)
 
-> data AWhorl3 = AWhorl3 {
->       aw3Node     :: P3
->     , aw3Scale    :: Double
->     , aw3Branches :: [ABranch3]
->     } deriving (Show, Eq)
+> type RWhorl3 = Whorl P3
+> type AWhorl3 = Whorl P3
+> type AWhorl2 = Whorl P2
 
-> data Whorl2 = Whorl2 {
->       w2Node     :: P2
->     , w2Scale    :: Double
->     , w2Branches :: [Branch2]
->     } deriving (Show, Eq)
-
-A branch shoots out from its origin to its `b3Node`, where it branches
+A branch shoots out from its origin to its `bNode`, where it branches
 into some number, possibly zero, of other branches.
 
-> data Branch3 = Tip3 P3 Int Double Double |
->     Branch3 {
->       b3Node       :: P3
->     , b3Age        :: Int
->     , b3PartialAge :: Double
->     , b3Girth      :: Double
->     , b3Branches   :: [Branch3]
+> data Branch a = Tip a Int Double Double |
+>     Branch {
+>       bNode       :: a
+>     , bAge        :: Int
+>     , bPartialAge :: Double
+>     , bGirth      :: Double
+>     , bBranches   :: [Branch a]
 >     } deriving (Show, Eq)
 
-> data ABranch3 = ATip3 P3 Int Double Double |
->     ABranch3 {
->       ab3Node       :: P3
->     , ab3Age        :: Int
->     , ab3PartialAge :: Double
->     , ab3Girth      :: Double
->     , ab3Branches   :: [ABranch3]
->     } deriving (Show, Eq)
-
-> data Branch2 = Tip2 P2 Int Double Double |
->     Branch2 {
->       b2Node       :: P2
->     , b2Age        :: Int
->     , b2PartialAge :: Double
->     , b2Girth      :: Double
->     , b2Branches   :: [Branch2]
->     } deriving (Show, Eq)
+> type RBranch3 = Branch P3
+> type ABranch3 = Branch P3
+> type ABranch2 = Branch P2
 
 **Growing the Tree**
 
 We first build a tree with each node is in its own coordinate space relative to its 
 parent node.
 
-> tree :: TreeParams -> Tree3
+> tree :: TreeParams -> RTree3
 > tree tp = if age == 0
->               then Tree3 trunkTip age girth Nothing         whorls
->               else Tree3 trunkTip age girth (Just nextTree) whorls
+>               then Tree trunkTip age girth Nothing         whorls
+>               else Tree trunkTip age girth (Just nextTree) whorls
 >     where age         = tpAge tp
 >           girth       = tpTrunkGirth tp
 >           trunkGrowth = tpTrunkLengthIncrement tp
@@ -206,8 +172,8 @@ A whorl is some number of branches, evenly spaced but at varying angle
 from the vertical. A whorl is rotated by the whorl phase, which changes
 from one to the next.
 
-> whorl :: TreeParams -> P3 -> Double -> Double -> Whorl3
-> whorl tp p s pa = Whorl3 p s [ branch tp (pt i) s pa | i <- [0 .. numBranches - 1]]
+> whorl :: TreeParams -> P3 -> Double -> Double -> RWhorl3
+> whorl tp p s pa = Whorl p s [ branch tp (pt i) s pa | i <- [0 .. numBranches - 1]]
 >     where pt i = p3 ( initialBranchGrowth * cos (rotation i)
 >                     , initialBranchGrowth * sin (rotation i)
 >                     , height i)
@@ -233,10 +199,10 @@ A branch shoots forward a certain length, then ends or splits into three branche
 going left, center, or right. Along with the point specifying the tip of the branch,
 there is a partial growth distance, which is used when drawing the tip itself.
 
-> branch :: TreeParams -> P3 -> Double -> Double -> Branch3
+> branch :: TreeParams -> P3 -> Double -> Double -> RBranch3
 > branch tp p s pa = if age == 0
->                        then Tip3    p age pa g
->                        else Branch3 p age pa g bs
+>                        then Tip    p age pa g
+>                        else Branch p age pa g bs
 >     where age   = tpAge tp
 >           g     = tpBranchGirth tp
 
@@ -279,23 +245,23 @@ coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 > toAbsoluteP3 :: P3 -> P3 -> P3
 > toAbsoluteP3 n p = n .+^ (p .-. origin)
 
-> toAbsoluteTree :: P3 -> Tree3 -> ATree3
-> toAbsoluteTree n (Tree3 p a g mt ws) =
+> toAbsoluteTree :: P3 -> RTree3 -> ATree3
+> toAbsoluteTree n (Tree p a g mt ws) =
 >     case mt of
->         Nothing -> ATree3 p' a g Nothing ws'
->         Just t  -> ATree3 p' a g (Just (toAbsoluteTree p' t)) ws'
+>         Nothing -> Tree p' a g Nothing ws'
+>         Just t  -> Tree p' a g (Just (toAbsoluteTree p' t)) ws'
 >     where p'  = toAbsoluteP3 n p
 >           ws' = map (toAbsoluteWhorl n) ws
 
-> toAbsoluteWhorl :: P3 -> Whorl3 -> AWhorl3
-> toAbsoluteWhorl n (Whorl3 p s bs) = AWhorl3 p' s bs'
+> toAbsoluteWhorl :: P3 -> RWhorl3 -> AWhorl3
+> toAbsoluteWhorl n (Whorl p s bs) = Whorl p' s bs'
 >     where p'  = toAbsoluteP3 n p
 >           bs' = map (toAbsoluteBranch p') bs
 
-> toAbsoluteBranch :: P3 -> Branch3 -> ABranch3
-> toAbsoluteBranch n (Tip3 p a pa g) = ATip3 p' a pa g
+> toAbsoluteBranch :: P3 -> RBranch3 -> ABranch3
+> toAbsoluteBranch n (Tip p a pa g) = Tip p' a pa g
 >     where p'  = toAbsoluteP3 n p
-> toAbsoluteBranch n (Branch3 p a pa g bs) = ABranch3 p' a pa g bs'
+> toAbsoluteBranch n (Branch p a pa g bs) = Branch p' a pa g bs'
 >     where p'  = toAbsoluteP3 n p
 >           bs' = map (toAbsoluteBranch p') bs
 
@@ -306,25 +272,25 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > xz :: P3 -> P2
 > xz p = p2 (x, z) where (x, _, z) = unp3 p
 
-> projectTreeXZ :: ATree3 -> Tree2
-> projectTreeXZ (ATree3 p a g mt ws) = case mt of
->     Nothing -> Tree2 p' a g  Nothing                 ws'
->     Just t  -> Tree2 p' a g (Just (projectTreeXZ t)) ws'
+> projectTreeXZ :: ATree3 -> ATree2
+> projectTreeXZ (Tree p a g mt ws) = case mt of
+>     Nothing -> Tree p' a g  Nothing                 ws'
+>     Just t  -> Tree p' a g (Just (projectTreeXZ t)) ws'
 >     where p'  = xz p
 >           ws' = map projectWhorlXZ ws
 
-> projectWhorlXZ :: AWhorl3 -> Whorl2
-> projectWhorlXZ (AWhorl3 p s bs) = Whorl2 (xz p) s (map projectBranchXZ bs)
+> projectWhorlXZ :: AWhorl3 -> AWhorl2
+> projectWhorlXZ (Whorl p s bs) = Whorl (xz p) s (map projectBranchXZ bs)
 
-> projectBranchXZ :: ABranch3 -> Branch2
+> projectBranchXZ :: ABranch3 -> ABranch2
 > projectBranchXZ b = case b of
->     ATip3 p a pa g       -> Tip2    (xz p) a pa g
->     ABranch3 p a pa g bs -> Branch2 (xz p) a pa g (map projectBranchXZ bs)
+>     Tip p a pa g       -> Tip    (xz p) a pa g
+>     Branch p a pa g bs -> Branch (xz p) a pa g (map projectBranchXZ bs)
 
 **Drawing the Tree from Absolute Coordinates**
 
-> drawTree :: P2 -> Tree2 -> Diagram B R2
-> drawTree n (Tree2 p a g mt ws) =
+> drawTree :: P2 -> ATree2 -> Diagram B R2
+> drawTree n (Tree p a g mt ws) =
 >     case mt of
 >         Nothing -> trunk <> whorls
 >         Just t  -> trunk <> whorls <> nextTree t
@@ -350,13 +316,13 @@ correct girths at top and bottom.
 >           w        = girth a g
 >           w'       = girth (a-1) g
 
-> drawWhorl :: Whorl2 -> Diagram B R2
-> drawWhorl (Whorl2 p _ bs) = mconcat (map (drawBranch p) bs)
+> drawWhorl :: AWhorl2 -> Diagram B R2
+> drawWhorl (Whorl p _ bs) = mconcat (map (drawBranch p) bs)
 
-> drawBranch :: P2 -> Branch2 -> Diagram B R2 
-> drawBranch n (Tip2 p a _ g)       = d
+> drawBranch :: P2 -> ABranch2 -> Diagram B R2 
+> drawBranch n (Tip p a _ g)       = d
 >     where d   = position [(n, fromOffsets [ p .-. n ] # withGirth a g)]
-> drawBranch n (Branch2 p a _ g bs) = d <> bs'
+> drawBranch n (Branch p a _ g bs) = d <> bs'
 >     where d   = position [(n, fromOffsets [ p .-. n ] # withGirth a g)]
 >           bs' = mconcat (map (drawBranch p) bs)
 
