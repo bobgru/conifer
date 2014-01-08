@@ -67,6 +67,14 @@ before rendering as a diagram.
 >     , t3Whorls   :: [Whorl3]
 >     } deriving (Show, Eq)
 
+> data ATree3 = ATree3 {
+>       at3Node     :: P3
+>     , at3Age      :: Int
+>     , at3Girth    :: Double
+>     , at3Next     :: Maybe ATree3
+>     , at3Whorls   :: [AWhorl3]
+>     } deriving (Show, Eq)
+
 > data Tree2 = Tree2 {
 >       t2Node     :: P2
 >     , t2Age      :: Int
@@ -87,6 +95,12 @@ whorls can have longer branches than younger ones.
 >     , w3Branches :: [Branch3]
 >     } deriving (Show, Eq)
 
+> data AWhorl3 = AWhorl3 {
+>       aw3Node     :: P3
+>     , aw3Scale    :: Double
+>     , aw3Branches :: [ABranch3]
+>     } deriving (Show, Eq)
+
 > data Whorl2 = Whorl2 {
 >       w2Node     :: P2
 >     , w2Scale    :: Double
@@ -105,6 +119,15 @@ into some number, possibly zero, of other branches.
 >     , b3Branches   :: [Branch3]
 >     } deriving (Show, Eq)
 
+> data ABranch3 = ATip3 P3 Int Double Double |
+>     ABranch3 {
+>       ab3Node       :: P3
+>     , ab3Age        :: Int
+>     , ab3PartialAge :: Double
+>     , ab3Girth      :: Double
+>     , ab3Branches   :: [ABranch3]
+>     } deriving (Show, Eq)
+
 > data Branch2 = Tip2 P2 Int Double Double |
 >     Branch2 {
 >       b2Node       :: P2
@@ -118,8 +141,6 @@ into some number, possibly zero, of other branches.
 
 We first build a tree with each node is in its own coordinate space relative to its 
 parent node.
-
-**TODO** We should have separate types for relative `Tree3` and absolute `Tree3`.
 
 > tree :: TreeParams -> Tree3
 > tree tp = if age == 0
@@ -258,23 +279,23 @@ coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 > toAbsoluteP3 :: P3 -> P3 -> P3
 > toAbsoluteP3 n p = n .+^ (p .-. origin)
 
-> toAbsoluteTree :: P3 -> Tree3 -> Tree3
+> toAbsoluteTree :: P3 -> Tree3 -> ATree3
 > toAbsoluteTree n (Tree3 p a g mt ws) =
 >     case mt of
->         Nothing -> Tree3 p' a g Nothing ws'
->         Just t  -> Tree3 p' a g (Just (toAbsoluteTree p' t)) ws'
+>         Nothing -> ATree3 p' a g Nothing ws'
+>         Just t  -> ATree3 p' a g (Just (toAbsoluteTree p' t)) ws'
 >     where p'  = toAbsoluteP3 n p
 >           ws' = map (toAbsoluteWhorl n) ws
 
-> toAbsoluteWhorl :: P3 -> Whorl3 -> Whorl3
-> toAbsoluteWhorl n (Whorl3 p s bs) = Whorl3 p' s bs'
+> toAbsoluteWhorl :: P3 -> Whorl3 -> AWhorl3
+> toAbsoluteWhorl n (Whorl3 p s bs) = AWhorl3 p' s bs'
 >     where p'  = toAbsoluteP3 n p
 >           bs' = map (toAbsoluteBranch p') bs
 
-> toAbsoluteBranch :: P3 -> Branch3 -> Branch3
-> toAbsoluteBranch n (Tip3 p a pa g) = Tip3 p' a pa g
+> toAbsoluteBranch :: P3 -> Branch3 -> ABranch3
+> toAbsoluteBranch n (Tip3 p a pa g) = ATip3 p' a pa g
 >     where p'  = toAbsoluteP3 n p
-> toAbsoluteBranch n (Branch3 p a pa g bs) = Branch3 p' a pa g bs'
+> toAbsoluteBranch n (Branch3 p a pa g bs) = ABranch3 p' a pa g bs'
 >     where p'  = toAbsoluteP3 n p
 >           bs' = map (toAbsoluteBranch p') bs
 
@@ -285,20 +306,20 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > xz :: P3 -> P2
 > xz p = p2 (x, z) where (x, _, z) = unp3 p
 
-> projectTreeXZ :: Tree3 -> Tree2
-> projectTreeXZ (Tree3 p a g mt ws) = case mt of
+> projectTreeXZ :: ATree3 -> Tree2
+> projectTreeXZ (ATree3 p a g mt ws) = case mt of
 >     Nothing -> Tree2 p' a g  Nothing                 ws'
 >     Just t  -> Tree2 p' a g (Just (projectTreeXZ t)) ws'
 >     where p'  = xz p
 >           ws' = map projectWhorlXZ ws
 
-> projectWhorlXZ :: Whorl3 -> Whorl2
-> projectWhorlXZ (Whorl3 p s bs) = Whorl2 (xz p) s (map projectBranchXZ bs)
+> projectWhorlXZ :: AWhorl3 -> Whorl2
+> projectWhorlXZ (AWhorl3 p s bs) = Whorl2 (xz p) s (map projectBranchXZ bs)
 
-> projectBranchXZ :: Branch3 -> Branch2
+> projectBranchXZ :: ABranch3 -> Branch2
 > projectBranchXZ b = case b of
->     Tip3 p a pa g       -> Tip2    (xz p) a pa g
->     Branch3 p a pa g bs -> Branch2 (xz p) a pa g (map projectBranchXZ bs)
+>     ATip3 p a pa g       -> Tip2    (xz p) a pa g
+>     ABranch3 p a pa g bs -> Branch2 (xz p) a pa g (map projectBranchXZ bs)
 
 **Drawing the Tree from Absolute Coordinates**
 
