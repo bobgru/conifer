@@ -103,6 +103,16 @@ into some number, possibly zero, of other branches.
 > type ABranch3 = Branch P3
 > type ABranch2 = Branch P2
 
+The tree parts are reduced to diagram primitives which can be folded into a single 
+diagram for rendering as an image.
+* `Trunk` is a section of trunk between points _p0_ and _p1_, with girth _g0_ at _p0_ and _g1_ at _p1_.
+* `Stem` is a section of branch between points _p0_ and _p1_ with girth _g_.
+* `Tip` is the tip of a branch, between points _p0_ and _p1_.
+
+> data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double }
+>               | Stem  { p0::P2, p1::P2, g::Double }
+>               | TipPrim   { p0::P2, p1::P2 }
+
 **Growing the Tree**
 
 We first build a tree with each node is in its own coordinate space relative to its 
@@ -287,44 +297,63 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 >     Tip p a pa g       -> Tip    (xz p) a pa g
 >     Branch p a pa g bs -> Branch (xz p) a pa g (map projectBranchXZ bs)
 
-**Drawing the Tree from Absolute Coordinates**
+**Reducing the Tree to Primitives from Absolute Coordinates**
 
-> drawTree :: P2 -> ATree2 -> Diagram B R2
-> drawTree n (Tree p a g mt ws) =
+> toPrim :: ATree2 -> [TreePrim]
+> toPrim = toPrim' origin
+
+> toPrim' :: P2 -> ATree2 -> [TreePrim]
+> toPrim' n (Tree p a g mt ws) =
 >     case mt of
->         Nothing -> trunk <> whorls
->         Just t  -> trunk <> whorls <> nextTree t
+>         Nothing -> trunk ++ whorls
+>         Just t  -> trunk ++ whorls ++ nextTree t
 >     where 
->           trunk      = drawTapered n p a g
->           whorls     = mconcat (map drawWhorl ws)
->           nextTree   = drawTree p
+>           trunk      = drawTrunkPrim n p a g
+>           whorls     = concatMap drawWhorlPrim ws
+>           nextTree   = toPrim' p
+
+> drawTrunkPrim :: P2 -> P2 -> Int -> Double -> [TreePrim]
+> drawTrunkPrim n p a g = [Trunk n p g0 g1]
+>     where g0 = girth a g
+>           g1 = girth (a-1) g
+
+> drawWhorlPrim :: AWhorl2 -> [TreePrim]
+> drawWhorlPrim (Whorl p _ bs) = concatMap (drawBranchPrim p) bs
+
+> drawBranchPrim :: P2 -> ABranch2 -> [TreePrim]
+> drawBranchPrim n (Tip p a _ g)       = [TipPrim n p]
+> drawBranchPrim n (Branch p a _ g bs) = Stem n p (girth a g) : concatMap (drawBranchPrim p) bs
+
+**Drawing the Primitives**
+
+> toDiag :: [TreePrim] -> Diagram B R2
+> toDiag = mconcat . map drawPrim
+
+> drawPrim :: TreePrim -> Diagram B R2
+> drawPrim (Trunk p0 p1 g0 g1) = drawTrunk p0 p1 g0 g1
+> drawPrim (Stem p0 p1 g)      = drawStem p0 p1 g
+> drawPrim (TipPrim p0 p1)     = drawTip p0 p1
 
 Draw a section of trunk (implicitly vertical) as a trapezoid with the
 correct girths at top and bottom.
 
-> drawTapered :: P2 -> P2 -> Int -> Double -> Diagram B R2
-> drawTapered n p a g = trunk
->     where trunk    = (closeLine . lineFromVertices . map p2) [
->                              ( w/2,  y0)
->                            , ( w'/2, y0 + y)
->                            , (-w'/2, y0 + y)
->                            , (-w/2,  y0)
->                            ] 
->                      # strokeLoop # fc black # lw 0.01 # centerX
->           (_,y)    = unp2 p
->           (_,y0)   = unp2 n
->           w        = girth a g
->           w'       = girth (a-1) g
+> drawTrunk :: P2 -> P2 -> Double -> Double -> Diagram B R2
+> drawTrunk p0 p1 g0 g1 = trunk
+>     where trunk = (closeLine . lineFromVertices . map p2) [
+>                         ( g0/2,  y0)
+>                       , ( g1/2,  y0 + y1)
+>                       , (-g1/2,  y0 + y1)
+>                       , (-g0/2,  y0)
+>                       ] 
+>                   # strokeLoop # fc black # lw 0.01 # centerX
+>           y0 = (snd . unp2) p0
+>           y1 = (snd . unp2) p1
 
-> drawWhorl :: AWhorl2 -> Diagram B R2
-> drawWhorl (Whorl p _ bs) = mconcat (map (drawBranch p) bs)
+> drawStem :: P2 -> P2 -> Double -> Diagram B R2 
+> drawStem p0 p1 g = position [(p0, fromOffsets [ p1 .-. p0 ] # lw g)]
 
-> drawBranch :: P2 -> ABranch2 -> Diagram B R2 
-> drawBranch n (Tip p a _ g)       = d
->     where d   = position [(n, fromOffsets [ p .-. n ] # withGirth a g)]
-> drawBranch n (Branch p a _ g bs) = d <> bs'
->     where d   = position [(n, fromOffsets [ p .-. n ] # withGirth a g)]
->           bs' = mconcat (map (drawBranch p) bs)
+> drawTip :: P2 -> P2 -> Diagram B R2 
+> drawTip p0 p1 = drawStem p0 p1 0.01
 
 Produce a width based on age and girth characteristic. This can be used directly
 as a line width as in `withGirth` or for calculating the top and bottom of a
@@ -339,5 +368,5 @@ trapezoid for a tapered trunk segment.
 **Rendering a Tree from Parameters**
 
 > renderTree :: TreeParams -> Diagram B R2
-> renderTree = drawTree origin . projectTreeXZ . toAbsoluteTree origin . tree
+> renderTree = toDiag . toPrim . projectTreeXZ . toAbsoluteTree origin . tree
 
