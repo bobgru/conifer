@@ -16,6 +16,8 @@ i.e. parameters that control lengths and angles and such.
 > import Diagrams.ThreeD.Types
 > import Data.Default.Class
 
+**The Input: Tree Parameters**
+
 Our ideal tree will be completely determined by its "genes", the various
 parameters in `TreeParams`. The age of the tree is the number of recursive
 steps in its growth. As we are modeling a conifer, its structure is a main
@@ -53,11 +55,12 @@ length of trunk, meanwhile adding another level of branching to existing branche
 >     , tpBranchBranchAngle        = tau / 6
 >     }
 
+**The Data Structure: Tree, Whorl, Branch**
+
 A tree rises from its origin to its `tNode` where there is optionally
 another tree, and—every year after the first—a whorl. The tree may
 grow additional whorls during a year, which are spaced evenly up the
-trunk. The tree grows as type `RTree3`, but is projected  to `ATree2`
-before rendering as a diagram.
+trunk.
 
 > data Tree a = Tree {
 >       tNode     :: a
@@ -66,10 +69,6 @@ before rendering as a diagram.
 >     , tNext     :: Maybe (Tree a)
 >     , tWhorls   :: [Whorl a]
 >     } deriving (Show, Eq)
-
-> type RTree3 = Tree P3
-> type ATree3 = Tree P3
-> type ATree2 = Tree P2
 
 A whorl is a collection of branches radiating evenly spaced from 
 the trunk but at varying angles relative to the trunk. 
@@ -83,10 +82,6 @@ whorls can have longer branches than younger ones.
 >     , wBranches :: [Branch a]
 >     } deriving (Show, Eq)
 
-> type RWhorl3 = Whorl P3
-> type AWhorl3 = Whorl P3
-> type AWhorl2 = Whorl P2
-
 A branch shoots out from its origin to its `bNode`, where it branches
 into some number, possibly zero, of other branches.
 
@@ -99,9 +94,52 @@ into some number, possibly zero, of other branches.
 >     , bBranches   :: [Branch a]
 >     } deriving (Show, Eq)
 
+We can specialize the types for the three phases of tree development.
+The tree grows as type `RTree3` (3D tree with relative coordinates), 
+is converted to `ATree3` (3D tree with absolute coordinates), and
+is projected to `ATree2` (2D tree with absolute coordinates) before 
+reduction to tree-primitives. The primitives do not retain the tree
+structure.
+
+> type RTree3 = Tree P3
+> type ATree3 = Tree P3
+> type ATree2 = Tree P2
+
+> type RWhorl3 = Whorl P3
+> type AWhorl3 = Whorl P3
+> type AWhorl2 = Whorl P2
+
 > type RBranch3 = Branch P3
 > type ABranch3 = Branch P3
 > type ABranch2 = Branch P2
+
+It will be convenient to be able to apply a function throughout the tree while
+preserving its structure.
+
+> instance Functor Tree where
+>     fmap = treeMap
+
+> instance Functor Whorl where
+>     fmap = whorlMap
+
+> instance Functor Branch where
+>     fmap = branchMap
+
+> treeMap :: (a -> b) -> Tree a -> Tree b
+> treeMap f (Tree p a g mt ws) = Tree p' a g mt' ws'
+>     where p'  = f p
+>           mt' = fmap (fmap f) mt
+>           ws' = fmap (fmap f) ws
+
+> whorlMap :: (a -> b) -> Whorl a -> Whorl b
+> whorlMap f (Whorl p s bs) = Whorl p' s bs'
+>     where p'  = f p
+>           bs' = fmap (fmap f) bs
+
+> branchMap :: (a -> b) -> Branch a -> Branch b
+> branchMap f b = case b of
+>     Tip p a pa g       -> Tip    (f p) a pa g
+>     Branch p a pa g bs -> Branch (f p) a pa g (fmap (fmap f) bs)
 
 The tree parts are reduced to diagram primitives which can be folded into a single 
 diagram for rendering as an image.
@@ -282,20 +320,8 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > xz :: P3 -> P2
 > xz p = p2 (x, z) where (x, _, z) = unp3 p
 
-> projectTreeXZ :: ATree3 -> ATree2
-> projectTreeXZ (Tree p a g mt ws) = case mt of
->     Nothing -> Tree p' a g  Nothing                 ws'
->     Just t  -> Tree p' a g (Just (projectTreeXZ t)) ws'
->     where p'  = xz p
->           ws' = map projectWhorlXZ ws
-
-> projectWhorlXZ :: AWhorl3 -> AWhorl2
-> projectWhorlXZ (Whorl p s bs) = Whorl (xz p) s (map projectBranchXZ bs)
-
-> projectBranchXZ :: ABranch3 -> ABranch2
-> projectBranchXZ b = case b of
->     Tip p a pa g       -> Tip    (xz p) a pa g
->     Branch p a pa g bs -> Branch (xz p) a pa g (map projectBranchXZ bs)
+> projectXZ :: ATree3 -> ATree2
+> projectXZ = fmap xz
 
 **Reducing the Tree to Primitives from Absolute Coordinates**
 
@@ -368,5 +394,5 @@ trapezoid for a tapered trunk segment.
 **Rendering a Tree from Parameters**
 
 > renderTree :: TreeParams -> Diagram B R2
-> renderTree = toDiag . toPrim . projectTreeXZ . toAbsoluteTree origin . tree
+> renderTree = toDiag . toPrim . projectXZ . toAbsoluteTree origin . tree
 
