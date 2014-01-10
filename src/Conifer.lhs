@@ -15,6 +15,7 @@ i.e. parameters that control lengths and angles and such.
 > import Diagrams.Coordinates
 > import Diagrams.ThreeD.Types
 > import Data.Default.Class
+> import Data.Maybe (isNothing, fromJust)
 
 **The Input: Tree Parameters**
 
@@ -157,9 +158,7 @@ We first build a tree with each node is in its own coordinate space relative to 
 parent node.
 
 > tree :: TreeParams -> RTree3
-> tree tp = if age == 0
->               then Tree trunkTip age girth Nothing         whorls
->               else Tree trunkTip age girth (Just nextTree) whorls
+> tree tp = Tree trunkTip age girth nextTree whorls
 >     where age         = tpAge tp
 >           girth       = tpTrunkGirth tp
 >           trunkGrowth = tpTrunkLengthIncrement tp
@@ -167,8 +166,8 @@ parent node.
 This year's trunk growth simply adds an increment of height relative to the
 tip of last year's trunk, with possibly another tree on top of that.
 
->           trunkTip  = p3 (0, 0, trunkGrowth)
->           nextTree  = tree tpNextYear
+>           trunkTip = p3 (0, 0, trunkGrowth)
+>           nextTree = if age == 0 then Nothing else Just (tree tpNextYear)
 
 The tree grows at least one whorl of branches every year after the first, starting
 at the tip of last year's trunk. Additionally, it might sprout a number of whorls
@@ -257,28 +256,21 @@ there is a partial growth distance, which is used when drawing the tip itself.
 Next year's subbranches continue straight, to the left and to the right. The straight
 subbranch grows at a possibly different rate from the side subbranches.
 
->           bs    = [l, c, r]
->           l     = branch tp' p_l s pa
->           c     = branch tp' p_c s pa
->           r     = branch tp' p_r s pa
->           tp'   = subYear tp
-
->           p_l   = p # rotateXY   bba  # scale growth2
->           p_c   = p                   # scale growth
->           p_r   = p # rotateXY (-bba) # scale growth2
->           bba   = tpBranchBranchAngle tp
+>           bs     = map mkBr [l, c, r]
+>           l      = p # rotateXY   bba  # scale growth2
+>           c      = p                   # scale growth
+>           r      = p # rotateXY (-bba) # scale growth2
+>           bba    = tpBranchBranchAngle tp
+>           mkBr p = branch (subYear tp) p s pa
 
 Determine if next year has partial growth.
 
->           growth         = if age == 1 then partialGrowth  else fullGrowth
->           partialGrowth  = s * bblr
->           fullGrowth     = bblr
->           bblr           = tpBranchBranchLengthRatio tp
-
->           growth2        = if age == 1 then partialGrowth2 else fullGrowth2
->           partialGrowth2 = s * bblr2
->           fullGrowth2    = bblr2
->           bblr2          = tpBranchBranchLengthRatio2 tp
+>           growth      = getGrowth tpBranchBranchLengthRatio
+>           growth2     = getGrowth tpBranchBranchLengthRatio2           
+>           getGrowth f = if age == 1 then partialGrowth  else fullGrowth
+>               where partialGrowth  = s * bblr
+>                     fullGrowth     = bblr
+>                     bblr           = f tp
 
 > rotateXY :: Rad -> P3 -> P3
 > rotateXY a p = p3 (x', y', z)
@@ -329,14 +321,10 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > toPrim = toPrim' origin
 
 > toPrim' :: P2 -> ATree2 -> [TreePrim]
-> toPrim' n (Tree p a g mt ws) =
->     case mt of
->         Nothing -> trunk ++ whorls
->         Just t  -> trunk ++ whorls ++ nextTree t
->     where 
->           trunk      = drawTrunkPrim n p a g
->           whorls     = concatMap drawWhorlPrim ws
->           nextTree   = toPrim' p
+> toPrim' n (Tree p a g mt ws) = trunk ++ whorls ++ nextTree
+>     where trunk    = drawTrunkPrim n p a g
+>           whorls   = concatMap drawWhorlPrim ws
+>           nextTree = if isNothing mt then [] else toPrim' p (fromJust mt)
 
 > drawTrunkPrim :: P2 -> P2 -> Int -> Double -> [TreePrim]
 > drawTrunkPrim n p a g = [Trunk n p g0 g1]
