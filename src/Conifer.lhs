@@ -86,13 +86,13 @@ whorls can have longer branches than younger ones.
 A branch shoots out from its origin to its `bNode`, where it branches
 into some number, possibly zero, of other branches.
 
-> data Branch a = Tip a Int Double Double |
+> data Branch a =
 >     Branch {
 >       bNode       :: a
 >     , bAge        :: Int
 >     , bPartialAge :: Double
 >     , bGirth      :: Double
->     , bBranches   :: [Branch a]
+>     , bBranches   :: Maybe [Branch a]
 >     } deriving (Show, Eq)
 
 We can specialize the types for the three phases of tree development.
@@ -139,8 +139,8 @@ preserving its structure.
 
 > branchMap :: (a -> b) -> Branch a -> Branch b
 > branchMap f b = case b of
->     Tip p a pa g       -> Tip    (f p) a pa g
->     Branch p a pa g bs -> Branch (f p) a pa g (fmap (fmap f) bs)
+>     Branch p a pa g Nothing   -> Branch (f p) a pa g Nothing
+>     Branch p a pa g (Just bs) -> Branch (f p) a pa g (Just (fmap (fmap f) bs))
 
 The tree parts are reduced to diagram primitives which can be folded into a single 
 diagram for rendering as an image.
@@ -150,7 +150,7 @@ diagram for rendering as an image.
 
 > data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double }
 >               | Stem  { p0::P2, p1::P2, g::Double }
->               | TipPrim   { p0::P2, p1::P2 }
+>               | Tip   { p0::P2, p1::P2 }
 
 **Growing the Tree**
 
@@ -248,8 +248,8 @@ there is a partial growth distance, which is used when drawing the tip itself.
 
 > branch :: TreeParams -> P3 -> Double -> Double -> RBranch3
 > branch tp p s pa = if age == 0
->                        then Tip    p age pa g
->                        else Branch p age pa g bs
+>                        then Branch p age pa g Nothing
+>                        else Branch p age pa g (Just bs)
 >     where age   = tpAge tp
 >           g     = tpBranchGirth tp
 
@@ -299,9 +299,9 @@ coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 >           bs' = map (toAbsoluteBranch p') bs
 
 > toAbsoluteBranch :: P3 -> RBranch3 -> ABranch3
-> toAbsoluteBranch n (Tip p a pa g) = Tip p' a pa g
+> toAbsoluteBranch n (Branch p a pa g Nothing)   = Branch p' a pa g Nothing
 >     where p'  = toAbsoluteP3 n p
-> toAbsoluteBranch n (Branch p a pa g bs) = Branch p' a pa g bs'
+> toAbsoluteBranch n (Branch p a pa g (Just bs)) = Branch p' a pa g (Just bs')
 >     where p'  = toAbsoluteP3 n p
 >           bs' = map (toAbsoluteBranch p') bs
 
@@ -335,8 +335,8 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > drawWhorlPrim (Whorl p _ bs) = concatMap (drawBranchPrim p) bs
 
 > drawBranchPrim :: P2 -> ABranch2 -> [TreePrim]
-> drawBranchPrim n (Tip p a _ g)       = [TipPrim n p]
-> drawBranchPrim n (Branch p a _ g bs) = Stem n p (girth a g) : concatMap (drawBranchPrim p) bs
+> drawBranchPrim n (Branch p a _ g Nothing)   = [Tip n p]
+> drawBranchPrim n (Branch p a _ g (Just bs)) = Stem n p (girth a g) : concatMap (drawBranchPrim p) bs
 
 **Drawing the Primitives**
 
@@ -346,7 +346,7 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > drawPrim :: TreePrim -> Diagram B R2
 > drawPrim (Trunk p0 p1 g0 g1) = drawTrunk p0 p1 g0 g1
 > drawPrim (Stem p0 p1 g)      = drawStem p0 p1 g
-> drawPrim (TipPrim p0 p1)     = drawTip p0 p1
+> drawPrim (Tip p0 p1)         = drawTip p0 p1
 
 Draw a section of trunk (implicitly vertical) as a trapezoid with the
 correct girths at top and bottom.
