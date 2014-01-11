@@ -138,9 +138,9 @@ preserving its structure.
 >           bs' = fmap (fmap f) bs
 
 > branchMap :: (a -> b) -> Branch a -> Branch b
-> branchMap f b = case b of
->     Branch p a pa g Nothing   -> Branch (f p) a pa g Nothing
->     Branch p a pa g (Just bs) -> Branch (f p) a pa g (Just (fmap (fmap f) bs))
+> branchMap f (Branch p a pa g mbs) = Branch p' a pa g mbs'
+>     where p'   = f p
+>           mbs' = fmap (fmap (fmap f)) mbs
 
 The tree parts are reduced to diagram primitives which can be folded into a single 
 diagram for rendering as an image.
@@ -293,12 +293,12 @@ coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 > toAbsoluteWhorl :: P3 -> RWhorl3 -> AWhorl3
 > toAbsoluteWhorl n (Whorl p s bs) = Whorl p' s bs'
 >     where p'  = toAbsoluteP3 n p
->           bs' = map (toAbsoluteBranch p') bs
+>           bs' = fmap (toAbsoluteBranch p') bs
 
 > toAbsoluteBranch :: P3 -> RBranch3 -> ABranch3
 > toAbsoluteBranch n (Branch p a pa g mbs) = Branch p' a pa g mbs'
 >     where p'   = toAbsoluteP3 n p
->           mbs' =  fmap (fmap (toAbsoluteBranch p')) mbs
+>           mbs' = fmap (fmap (toAbsoluteBranch p')) mbs
 
 **Projecting the Tree onto 2D**
 
@@ -319,12 +319,10 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > toPrim' n (Tree p a g mt ws) = trunk ++ whorls ++ nextTree
 >     where trunk    = drawTrunkPrim n p a g
 >           whorls   = concatMap drawWhorlPrim ws
->           nextTree = if isNothing mt then [] else toPrim' p (fromJust mt)
+>           nextTree = maybe [] (toPrim' p) mt
 
 > drawTrunkPrim :: P2 -> P2 -> Int -> Double -> [TreePrim]
-> drawTrunkPrim n p a g = [Trunk n p g0 g1]
->     where g0 = girth a g
->           g1 = girth (a-1) g
+> drawTrunkPrim n p a g = [Trunk n p (girth a g) (girth (a-1) g)]
 
 > drawWhorlPrim :: AWhorl2 -> [TreePrim]
 > drawWhorlPrim (Whorl p _ bs) = concatMap (drawBranchPrim p) bs
