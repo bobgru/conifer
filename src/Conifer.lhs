@@ -15,7 +15,6 @@ i.e. parameters that control lengths and angles and such.
 > import Diagrams.Coordinates
 > import Diagrams.ThreeD.Types
 > import Data.Default.Class
-> import Data.Maybe (isNothing, fromJust)
 
 **The Input: Tree Parameters**
 
@@ -365,15 +364,10 @@ correct girths at top and bottom.
 > drawTip :: P2 -> P2 -> Diagram B R2 
 > drawTip p0 p1 = drawStem p0 p1 0.01
 
-Produce a width based on age and girth characteristic. This can be used directly
-as a line width as in `withGirth` or for calculating the top and bottom of a
-trapezoid for a tapered trunk segment.
+Produce a width based on age and girth characteristic.
 
 > girth :: Int -> Double -> Double
 > girth a g = fromIntegral (a+1) * g * 0.01
-
-> withGirth :: Int -> Double -> Diagram B R2 -> Diagram B R2
-> withGirth a = lw . girth a
 
 **Rendering a Tree from Parameters**
 
