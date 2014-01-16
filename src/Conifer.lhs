@@ -154,7 +154,7 @@ diagram for rendering as an image.
 
 **Growing the Tree**
 
-We first build a tree with each node is in its own coordinate space relative to its 
+We first build a tree with each node in its own coordinate space relative to its 
 parent node.
 
 > tree :: TreeParams -> RTree3
@@ -185,14 +185,14 @@ then its age is one year less, and its partial growth is 1.0.
 >                                       | i <- [1..numWhorls-1], let a = partialAge (numWhorls-i)]
 
 There is no whorl at the very top of the tree, i.e. when age is 0, there is 
-no next year's whorl.
+no next year's whorl. The whorls' parameters vary by whorl phase and trunk branch angle, so
+`tps` supplies the list. Additionally, we need to identify the parameters for next year, which
+entails determining the last parameters for this year so we can properly advance the phase and angle.
 
->           whorls          = if age == 0 
->                                 then thisYearsWhorls
->                                 else thisYearsWhorls ++ [nextYearsWhorl]
+>           whorls          = thisYearsWhorls ++ nextYearsWhorl
 >           thisYearsWhorls = [whorl tp' (p3 (0, 0, height))  tipGrowth pa
 >                                 | (tp', (height, tipGrowth, pa)) <- zip tps initialBranchTips]
->           nextYearsWhorl  = whorl tpNextYear trunkTip 1.0 1.0
+>           nextYearsWhorl  = if age == 0 then [] else [whorl tpNextYear trunkTip 1.0 1.0]
 >           tps             = take (length initialBranchTips)
 >                                  (iterate (advancePhase . advanceTrunkBranchAngle) tp)
 >           tpNextYear      =  (subYear . advancePhase . advanceTrunkBranchAngle) tpThisYearsLast
@@ -284,6 +284,9 @@ coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 > toAbsoluteP3 :: P3 -> P3 -> P3
 > toAbsoluteP3 n p = n .+^ (p .-. origin)
 
+> toAbsolute :: RTree3 -> ATree3
+> toAbsolute = toAbsoluteTree origin
+
 > toAbsoluteTree :: P3 -> RTree3 -> ATree3
 > toAbsoluteTree n (Tree p a g mt ws) = Tree p' a g mt' ws'
 >     where p'  = toAbsoluteP3 n p
@@ -313,28 +316,28 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 **Reducing the Tree to Primitives from Absolute Coordinates**
 
 > toPrim :: ATree2 -> [TreePrim]
-> toPrim = toPrim' origin
+> toPrim = treeToPrim origin
 
-> toPrim' :: P2 -> ATree2 -> [TreePrim]
-> toPrim' n (Tree p a g mt ws) = trunk ++ whorls ++ nextTree
->     where trunk    = drawTrunkPrim n p a g
->           whorls   = concatMap drawWhorlPrim ws
->           nextTree = maybe [] (toPrim' p) mt
+> treeToPrim :: P2 -> ATree2 -> [TreePrim]
+> treeToPrim n (Tree p a g mt ws) = trunk ++ whorls ++ nextTree
+>     where trunk    = trunkToPrim n p a g
+>           whorls   = concatMap whorlToPrim ws
+>           nextTree = maybe [] (treeToPrim p) mt
 
-> drawTrunkPrim :: P2 -> P2 -> Int -> Double -> [TreePrim]
-> drawTrunkPrim n p a g = [Trunk n p (girth a g) (girth (a-1) g)]
+> trunkToPrim :: P2 -> P2 -> Int -> Double -> [TreePrim]
+> trunkToPrim n p a g = [Trunk n p (girth a g) (girth (a-1) g)]
 
-> drawWhorlPrim :: AWhorl2 -> [TreePrim]
-> drawWhorlPrim (Whorl p _ bs) = concatMap (drawBranchPrim p) bs
+> whorlToPrim :: AWhorl2 -> [TreePrim]
+> whorlToPrim (Whorl p _ bs) = concatMap (branchToPrim p) bs
 
-> drawBranchPrim :: P2 -> ABranch2 -> [TreePrim]
-> drawBranchPrim n (Branch p a _ g Nothing)   = [Tip n p]
-> drawBranchPrim n (Branch p a _ g (Just bs)) = Stem n p (girth a g) : concatMap (drawBranchPrim p) bs
+> branchToPrim :: P2 -> ABranch2 -> [TreePrim]
+> branchToPrim n (Branch p a _ g Nothing)   = [Tip n p]
+> branchToPrim n (Branch p a _ g (Just bs)) = Stem n p (girth a g) : concatMap (branchToPrim p) bs
 
 **Drawing the Primitives**
 
-> toDiag :: [TreePrim] -> Diagram B R2
-> toDiag = mconcat . map drawPrim
+> draw :: [TreePrim] -> Diagram B R2
+> draw = mconcat . map drawPrim
 
 > drawPrim :: TreePrim -> Diagram B R2
 > drawPrim (Trunk p0 p1 g0 g1) = drawTrunk p0 p1 g0 g1
@@ -375,5 +378,5 @@ trapezoid for a tapered trunk segment.
 **Rendering a Tree from Parameters**
 
 > renderTree :: TreeParams -> Diagram B R2
-> renderTree = toDiag . toPrim . projectXZ . toAbsoluteTree origin . tree
+> renderTree = draw . toPrim . projectXZ . toAbsolute . tree
 
