@@ -312,6 +312,16 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > projectXZ :: ATree3 -> ATree2
 > projectXZ = fmap xz
 
+**Respect the Earth**
+
+Assuming the tree is growing on flat ground, we can't have the branches digging into it.
+
+> aboveGround :: P2 -> P2
+> aboveGround p = p2 (x, max 0 z) where (x, z) = unp2 p
+
+> mkAboveGround :: ATree2 -> ATree2
+> mkAboveGround = fmap aboveGround
+
 **Reducing the Tree to Primitives from Absolute Coordinates**
 
 > toPrim :: ATree2 -> [TreePrim]
@@ -372,5 +382,5 @@ Produce a width based on age and girth characteristic.
 **Rendering a Tree from Parameters**
 
 > renderTree :: TreeParams -> Diagram B R2
-> renderTree = draw . toPrim . projectXZ . toAbsolute . tree
+> renderTree = draw . toPrim . mkAboveGround . projectXZ . toAbsolute . tree
 
