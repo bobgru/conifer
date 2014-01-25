@@ -62,13 +62,16 @@ another tree, and—every year after the first—a whorl. The tree may
 grow additional whorls during a year, which are spaced evenly up the
 trunk.
 
-> data Tree a = Tree {
+> data Tree a =
+>     Leaf
+>
+>   | Tree {
 >       tNode     :: a
 >     , tAge      :: Int
 >     , tGirth    :: Double
->     , tNext     :: Maybe (Tree a)
->     , tWhorls   :: [Whorl a]
->     } deriving (Show, Eq)
+>     , tNext     :: Tree a
+>     , tWhorls   :: [Tree a]
+>     }
 
 A whorl is a collection of branches radiating evenly spaced from 
 the trunk but at varying angles relative to the trunk. 
@@ -76,23 +79,23 @@ There can be multiple whorls per year, so a whorl records its position
 along that year's segment of trunk and a scale factor, so that older 
 whorls can have longer branches than younger ones. 
 
-> data Whorl a = Whorl {
+>   | Whorl {
 >       wNode     :: a
 >     , wScale    :: Double
->     , wBranches :: [Branch a]
->     } deriving (Show, Eq)
+>     , wBranches :: [Tree a]
+>     }
 
 A branch shoots out from its origin to its `bNode`, where it branches
 into some number, possibly zero, of other branches.
 
-> data Branch a =
->     Branch {
+>   | Branch {
 >       bNode       :: a
 >     , bAge        :: Int
 >     , bPartialAge :: Double
 >     , bGirth      :: Double
->     , bBranches   :: Maybe [Branch a]
->     } deriving (Show, Eq)
+>     , bBranches   :: [Tree a]
+>     }
+>   deriving (Show, Eq)
 
 We can specialize the types for the three phases of tree development.
 The tree grows as type `RTree3` (3D tree with relative coordinates), 
@@ -105,41 +108,24 @@ structure.
 > type ATree3 = Tree P3
 > type ATree2 = Tree P2
 
-> type RWhorl3 = Whorl P3
-> type AWhorl3 = Whorl P3
-> type AWhorl2 = Whorl P2
-
-> type RBranch3 = Branch P3
-> type ABranch3 = Branch P3
-> type ABranch2 = Branch P2
-
 It will be convenient to be able to apply a function throughout the tree while
 preserving its structure.
 
 > instance Functor Tree where
 >     fmap = treeMap
 
-> instance Functor Whorl where
->     fmap = whorlMap
-
-> instance Functor Branch where
->     fmap = branchMap
-
 > treeMap :: (a -> b) -> Tree a -> Tree b
-> treeMap f (Tree p a g mt ws) = Tree p' a g mt' ws'
+> treeMap f Leaf = Leaf
+> treeMap f (Tree p a g t ws) = Tree p' a g t' ws'
 >     where p'  = f p
->           mt' = fmap (fmap f) mt
+>           t'  = fmap f t
 >           ws' = fmap (fmap f) ws
-
-> whorlMap :: (a -> b) -> Whorl a -> Whorl b
-> whorlMap f (Whorl p s bs) = Whorl p' s bs'
+> treeMap f (Whorl p s bs) = Whorl p' s bs'
 >     where p'  = f p
 >           bs' = fmap (fmap f) bs
-
-> branchMap :: (a -> b) -> Branch a -> Branch b
-> branchMap f (Branch p a pa g mbs) = Branch p' a pa g mbs'
->     where p'   = f p
->           mbs' = fmap (fmap (fmap f)) mbs
+> treeMap f (Branch p a pa g bs) = Branch p' a pa g bs'
+>     where p'  = f p
+>           bs' = fmap (fmap f) bs
 
 The tree parts are reduced to diagram primitives which can be folded into a single 
 diagram for rendering as an image.
@@ -166,7 +152,7 @@ This year's trunk growth simply adds an increment of height relative to the
 tip of last year's trunk, with possibly another tree on top of that.
 
 >           trunkTip = p3 (0, 0, trunkGrowth)
->           nextTree = if age == 0 then Nothing else Just (tree tpNextYear)
+>           nextTree = if age == 0 then Leaf else tree tpNextYear
 
 The tree grows at least one whorl of branches every year after the first, starting
 at the tip of last year's trunk. Additionally, it might sprout a number of whorls
@@ -218,7 +204,7 @@ A whorl is some number of branches, evenly spaced but at varying angle
 from the vertical. A whorl is rotated by the whorl phase, which changes
 from one to the next.
 
-> whorl :: TreeParams -> P3 -> Double -> Double -> RWhorl3
+> whorl :: TreeParams -> P3 -> Double -> Double -> RTree3
 > whorl tp p s pa = Whorl p s [ branch tp (pt i) s pa | i <- [0 .. numBranches - 1]]
 >     where pt i = p3 ( initialBranchGrowth * cos (rotation i)
 >                     , initialBranchGrowth * sin (rotation i)
@@ -245,16 +231,15 @@ A branch shoots forward a certain length, then ends or splits into three branche
 going left, center, or right. Along with the point specifying the tip of the branch,
 there is a partial growth distance, which is used when drawing the tip itself.
 
-> branch :: TreeParams -> P3 -> Double -> Double -> RBranch3
-> branch tp p s pa = Branch p age pa g mbs
+> branch :: TreeParams -> P3 -> Double -> Double -> RTree3
+> branch tp p s pa = Branch p age pa g bs
 >     where age   = tpAge tp
 >           g     = tpBranchGirth tp
 
 Next year's subbranches continue straight, to the left and to the right. The straight
 subbranch grows at a possibly different rate from the side subbranches.
 
->           mbs = if age == 0 then Nothing else Just bs
->           bs     = map mkBr [l, c, r]
+>           bs     = if age == 0 then [Leaf] else map mkBr [l, c, r]
 >           l      = p # rotateXY   bba  # scale growth2
 >           c      = p                   # scale growth
 >           r      = p # rotateXY (-bba) # scale growth2
@@ -287,20 +272,17 @@ coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 > toAbsolute = toAbsoluteTree origin
 
 > toAbsoluteTree :: P3 -> RTree3 -> ATree3
-> toAbsoluteTree n (Tree p a g mt ws) = Tree p' a g mt' ws'
+> toAbsoluteTree _ Leaf = Leaf
+> toAbsoluteTree n (Tree p a g t ws) = Tree p' a g t' ws'
 >     where p'  = toAbsoluteP3 n p
->           ws' = fmap (toAbsoluteWhorl n) ws
->           mt' = fmap (toAbsoluteTree p') mt
-
-> toAbsoluteWhorl :: P3 -> RWhorl3 -> AWhorl3
-> toAbsoluteWhorl n (Whorl p s bs) = Whorl p' s bs'
+>           ws' = fmap (toAbsoluteTree n) ws
+>           t'  = toAbsoluteTree p' t
+> toAbsoluteTree n (Whorl p s bs) = Whorl p' s bs'
 >     where p'  = toAbsoluteP3 n p
->           bs' = fmap (toAbsoluteBranch p') bs
-
-> toAbsoluteBranch :: P3 -> RBranch3 -> ABranch3
-> toAbsoluteBranch n (Branch p a pa g mbs) = Branch p' a pa g mbs'
->     where p'   = toAbsoluteP3 n p
->           mbs' = fmap (fmap (toAbsoluteBranch p')) mbs
+>           bs' = fmap (toAbsoluteTree p') bs
+> toAbsoluteTree n (Branch p a pa g bs) = Branch p' a pa g bs'
+>     where p'  = toAbsoluteP3 n p
+>           bs' = fmap (toAbsoluteTree p') bs
 
 **Projecting the Tree onto 2D**
 
@@ -328,20 +310,21 @@ Assuming the tree is growing on flat ground, we can't have the branches digging 
 > toPrim = treeToPrim origin
 
 > treeToPrim :: P2 -> ATree2 -> [TreePrim]
-> treeToPrim n (Tree p a g mt ws) = trunk ++ whorls ++ nextTree
+> treeToPrim _ Leaf = []
+> treeToPrim n (Tree p a g t ws) = trunk ++ whorls ++ nextTree
 >     where trunk    = trunkToPrim n p a g
 >           whorls   = concatMap whorlToPrim ws
->           nextTree = maybe [] (treeToPrim p) mt
+>           nextTree = treeToPrim p t
 
 > trunkToPrim :: P2 -> P2 -> Int -> Double -> [TreePrim]
 > trunkToPrim n p a g = [Trunk n p (girth a g) (girth (a-1) g)]
 
-> whorlToPrim :: AWhorl2 -> [TreePrim]
+> whorlToPrim :: ATree2 -> [TreePrim]
 > whorlToPrim (Whorl p _ bs) = concatMap (branchToPrim p) bs
 
-> branchToPrim :: P2 -> ABranch2 -> [TreePrim]
-> branchToPrim n (Branch p a _ g Nothing)   = [Tip n p]
-> branchToPrim n (Branch p a _ g (Just bs)) = Stem n p (girth a g) : concatMap (branchToPrim p) bs
+> branchToPrim :: P2 -> ATree2 -> [TreePrim]
+> branchToPrim n (Branch p a _ g [Leaf]) = [Tip n p]
+> branchToPrim n (Branch p a _ g bs)     = Stem n p (girth a g) : concatMap (branchToPrim p) bs
 
 **Drawing the Primitives**
 
