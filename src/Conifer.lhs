@@ -72,15 +72,14 @@ Trunks differ from branches in the composition of`nNodes`. In a trunk,
 
 A leaf represents the end of a trunk or branch, containing only its location.
 
-> data Tree a =
->     Node {
->       nNode  :: a
->     , nAge   :: Double
->     , nGirth :: Double
->     , nNodes :: [Tree a]
->     }
->   | Leaf { lNode :: a }
->   deriving (Show, Eq)
+> data Tree a = Leaf a | Node a [Tree a]
+>     deriving (Show, Eq)
+
+The payload of a leaf or node is a `TreeInfo` containing the location
+in space of the node, its age, and its girth (i.e. of the section of
+trunk or branch ending at the node).
+
+> type TreeInfo a = (a, Double, Double)
 
 We can specialize the types for the three phases of tree development.
 The tree grows as type `RTree3` (3D tree with relative coordinates), 
@@ -89,9 +88,9 @@ is projected to `ATree2` (2D tree with absolute coordinates) before
 reduction to tree-primitives. The primitives do not retain the tree
 structure.
 
-> type RTree3 = Tree P3
-> type ATree3 = Tree P3
-> type ATree2 = Tree P2
+> type RTree3 = Tree (TreeInfo P3)
+> type ATree3 = Tree (TreeInfo P3)
+> type ATree2 = Tree (TreeInfo P2)
 
 It will be convenient to be able to apply a function throughout the tree while
 preserving its structure.
@@ -100,23 +99,22 @@ preserving its structure.
 >     fmap = treeMap
 
 > treeMap :: (a -> b) -> Tree a -> Tree b
-> treeMap f (Leaf n)        = Leaf (f n)
-> treeMap f (Node n a g ns) = Node (f n) a g (map (treeMap f) ns)
+> treeMap f (Leaf a)    = Leaf (f a)
+> treeMap f (Node a ns) = Node (f a) (map (treeMap f) ns)
 
 Transforming a tree from relative to absolute coordinates is not an associative operation.
 It is a fold of the node value through the tree from root to leaves.
 
-> treeFold :: (a -> b -> a) -> a -> Tree b -> Tree a
-> treeFold f n0 (Leaf n)        = Leaf (f n0 n)
-> treeFold f n0 (Node n a g ns) = Node (f n0 n) a g (map (treeFold f (f n0 n)) ns)
+> treeFold :: (b -> a -> b) -> b -> Tree a -> Tree b
+> treeFold f a0 (Leaf a)    = Leaf (f a0 a)
+> treeFold f a0 (Node a ns) = Node (f a0 a) (map (treeFold f (f a0 a)) ns)
 
 Rendering the tree to drawing primitives likewise isn't associative because it, too, involves
 folding a node value through the tree. In this case the result is a flat list, not a tree.
-The flattening function needs the node arguments, so for leaves we use dummy values.
 
-> flattenTree :: (a -> (a, Double, Double) -> [b]) -> a -> Tree a -> [b]
-> flattenTree f n0 (Leaf n)        = f n0 (n, -1, -1)
-> flattenTree f n0 (Node n a g ns) = f n0 (n, a, g) ++ concatMap (flattenTree f n) ns
+> flattenTree :: (a -> a -> [b]) -> a -> Tree a -> [b]
+> flattenTree f a0 (Leaf a)    = f a0 a
+> flattenTree f a0 (Node a ns) = f a0 a ++ concatMap (flattenTree f a) ns
 
 The tree parts are reduced to diagram primitives which can be folded into a single 
 diagram for rendering as an image.
@@ -134,7 +132,7 @@ We first build a tree with each node in its own coordinate space relative to its
 parent node.
 
 > tree :: TreeParams -> RTree3
-> tree tp = if age < ageIncr then Leaf node else Node node age girth nodes
+> tree tp = if age < ageIncr then Leaf (node, 0, -1) else Node (node, age, girth) nodes
 >     where age     = tpAge tp
 >           girth   = tpTrunkGirth tp
 >           node    = p3 (0, 0, tpTrunkLengthIncrementPerYear tp * ageIncr)
@@ -163,7 +161,7 @@ A branch shoots forward a certain length, then ends or splits into three branche
 going left, center, or right.
 
 > branch :: TreeParams -> P3 -> RTree3
-> branch tp node = if age < 1 then Leaf leafNode else Node node age girth nodes
+> branch tp node = if age < 1 then Leaf (leafNode, 0, -1) else Node (node, age, girth) nodes
 >     where age   = tpAge tp
 >           girth = tpBranchGirth tp
 
@@ -218,8 +216,11 @@ coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 > toAbsoluteP3 :: P3 -> P3 -> P3
 > toAbsoluteP3 n p = n .+^ (p .-. origin)
 
+> infoToAbsoluteP3 :: TreeInfo P3 -> TreeInfo P3 -> TreeInfo P3
+> infoToAbsoluteP3 (n0,_,_) (n,a,g) = (toAbsoluteP3 n0 n, a, g)
+
 > toAbsolute :: RTree3 -> ATree3
-> toAbsolute = treeFold toAbsoluteP3 origin
+> toAbsolute = treeFold infoToAbsoluteP3 (origin,0,0)
 
 **Projecting the Tree onto 2D**
 
@@ -228,8 +229,11 @@ We are rendering the tree from the side, so we simply discard the _y_-coordinate
 > xz :: P3 -> P2
 > xz p = p2 (x, z) where (x, _, z) = unp3 p
 
+> infoXZ :: TreeInfo P3 -> TreeInfo P2
+> infoXZ (n, a, g) = (xz n, a, g)
+
 > projectXZ :: ATree3 -> ATree2
-> projectXZ = fmap xz
+> projectXZ = fmap infoXZ
 
 **Respect the Earth**
 
@@ -238,19 +242,22 @@ Assuming the tree is growing on flat ground, we can't have the branches digging 
 > aboveGround :: P2 -> P2
 > aboveGround p = p2 (x, max 0 z) where (x, z) = unp2 p
 
+> infoAboveGround :: TreeInfo P2 -> TreeInfo P2
+> infoAboveGround (n, a, g) = (aboveGround n, a, g)
+
 > mkAboveGround :: ATree2 -> ATree2
-> mkAboveGround = fmap aboveGround
+> mkAboveGround = fmap infoAboveGround
 
 **Reducing the Tree to Primitives from Absolute Coordinates**
 
 > toPrim :: ATree2 -> [TreePrim]
-> toPrim = flattenTree treeToPrim origin
+> toPrim = flattenTree treeToPrim (origin,0,0)
 
 Our flattening function needs the information from a node,
 but not the tree structure, so we receive it as a tuple.
 
-> treeToPrim :: P2 -> (P2, Double, Double) -> [TreePrim]
-> treeToPrim n0 (n, a, g) = [if a < 0 then tip else node]
+> treeToPrim :: TreeInfo P2 -> TreeInfo P2 -> [TreePrim]
+> treeToPrim (n0,_,_) (n, a, g) = [if g < 0 then tip else node]
 >     where tip   = Tip n0 n
 >           node  = if isVertical (n .-. n0)
 >                       then Trunk n0 n (girth a g) (girth (a-1) g)
