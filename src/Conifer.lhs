@@ -88,7 +88,7 @@ is projected to `ATree2` (2D tree with absolute coordinates) before
 reduction to tree-primitives. The primitives do not retain the tree
 structure.
 
-> type RTree3 = Tree (TreeInfo P3)
+> type RTree3 = Tree (TreeInfo R3)
 > type ATree3 = Tree (TreeInfo P3)
 > type ATree2 = Tree (TreeInfo P2)
 
@@ -135,7 +135,7 @@ parent node.
 > tree tp = if age < ageIncr then Leaf (node, 0, -1) else Node (node, age, girth) nodes
 >     where age     = tpAge tp
 >           girth   = tpTrunkGirth tp
->           node    = p3 (0, 0, tpTrunkLengthIncrementPerYear tp * ageIncr)
+>           node    = r3 (0, 0, tpTrunkLengthIncrementPerYear tp * ageIncr)
 >           nodes   = tree tpNext : whorl tpNext
 >           tpNext  = (adjustAge (-ageIncr) . advancePhase . advanceTrunkBranchAngle) tp
 >           ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
@@ -146,7 +146,7 @@ from one to the next.
 
 > whorl :: TreeParams -> [RTree3]
 > whorl tp = [ branch tp (pt i) | i <- [0 .. numBranches - 1] ]
->     where pt i        = p3 ( tblr * cos (rotation i)
+>     where pt i        = r3 ( tblr * cos (rotation i)
 >                            , tblr * sin (rotation i)
 >                            , tblr * cos (tba i))
 >           tblr        = tpTrunkBranchLengthRatio tp
@@ -160,7 +160,7 @@ from one to the next.
 A branch shoots forward a certain length, then ends or splits into three branches,
 going left, center, or right.
 
-> branch :: TreeParams -> P3 -> RTree3
+> branch :: TreeParams -> R3 -> RTree3
 > branch tp node = if age < 1 then Leaf (leafNode, 0, -1) else Node (node, age, girth) nodes
 >     where age   = tpAge tp
 >           girth = tpBranchGirth tp
@@ -185,9 +185,9 @@ branches to their full length. If they are leaves, they will be scaled back, as 
 
 Some helper functions for building the tree:
 
-> rotateXY :: Rad -> P3 -> P3
-> rotateXY a p = p3 (x', y', z)
->     where (x, y, z) = unp3 p
+> rotateXY :: Rad -> R3 -> R3
+> rotateXY a v = r3 (x', y', z)
+>     where (x, y, z) = unr3 v
 >           (x', y')  = unr2 (rotate a (r2 (x, y)))
 
 > subYear :: TreeParams -> TreeParams
@@ -213,14 +213,11 @@ Some helper functions for building the tree:
 Convert the tree of relative coordinate spaces into a single coherent absolute
 coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 
-> toAbsoluteP3 :: P3 -> P3 -> P3
-> toAbsoluteP3 n p = n .+^ (p .-. origin)
-
-> infoToAbsoluteP3 :: TreeInfo P3 -> TreeInfo P3 -> TreeInfo P3
-> infoToAbsoluteP3 (n0,_,_) (n,a,g) = (toAbsoluteP3 n0 n, a, g)
+> infoR3ToP3 :: TreeInfo P3 -> TreeInfo R3 -> TreeInfo P3
+> infoR3ToP3 (n0,_,_) (n,a,g) = (n0 .+^ n, a, g)
 
 > toAbsolute :: RTree3 -> ATree3
-> toAbsolute = treeFold infoToAbsoluteP3 (origin,0,0)
+> toAbsolute = treeFold infoR3ToP3 (origin,0,0)
 
 **Projecting the Tree onto 2D**
 
