@@ -58,17 +58,17 @@ of branching to existing branches.
 
 **The Tree Data Structure**
 
-A tree is parameterized on location type.
+A tree is parameterized on payload type.
 
-A tree rises from its origin to its `nNode` where there is
+A tree rises from its origin to a node where there is
 another tree, and a whorl of branches. Having age as a continuous
 variable allows recursing per year with a remainder of extra growth.
-A branch shoots out from its origin to its `nNode`, where it branches
+A branch shoots out from its origin to a node, where it branches
 into some number, possibly zero, of other branches.
 
-Trunks differ from branches in the composition of`nNodes`. In a trunk,
-`nNodes` contains another trunk and a whorl of branches. In a branch,
-`nNodes` contains the next level of branches.
+Trunks differ from branches in the composition of their subnodes. A trunk
+contains another trunk and a whorl of branches. A branch contains the next
+level of branches.
 
 A leaf represents the end of a trunk or branch, containing only its location.
 
