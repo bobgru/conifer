@@ -65,36 +65,36 @@ All comparisons will make alterations to the following set of parameters.
 
 > tp :: TreeParams
 > tp = def {
->       tpAge                      = 2
->     , tpTrunkLengthIncrement     = 2.0
->     , tpTrunkBranchLengthRatio   = 0.6
->     , tpTrunkBranchAngles        = [tau / 9, tau / 7, tau / 4.8 , tau / 6.5 ]
->     , tpTrunkGirth               = 6.0
->     , tpWhorlsPerYear            = 9
->     , tpWhorlSize                = 11
->     , tpWhorlPhase               = tau / 3
->     , tpBranchGirth              = 1.0
->     , tpBranchBranchLengthRatio  = 1.0
->     , tpBranchBranchLengthRatio2 = 1.2
->     , tpBranchBranchAngle        = tau / 8
+>       tpAge                         = 3
+>     , tpTrunkLengthIncrementPerYear = 2.0
+>     , tpTrunkBranchLengthRatio      = 0.6
+>     , tpTrunkBranchAngles           = [tau / 9, tau / 7, tau / 4.8 , tau / 6.5 ]
+>     , tpTrunkGirth                  = 6.0
+>     , tpWhorlsPerYear               = 9
+>     , tpWhorlSize                   = 11
+>     , tpWhorlPhase                  = tau / 3
+>     , tpBranchGirth                 = 1.0
+>     , tpBranchBranchLengthRatio     = 1.0
+>     , tpBranchBranchLengthRatio2    = 1.2
+>     , tpBranchBranchAngle           = tau / 8
 >     }
 
 Trunk length vs. whorls per year
 
 > trunkLength_Whorls = trees
->     where f tp x y = tp { tpTrunkLengthIncrement = x
->                         , tpWhorlsPerYear        = y
+>     where f tp x y = tp { tpTrunkLengthIncrementPerYear = x
+>                         , tpWhorlsPerYear               = y
 >                         }
->           trees    = [ treeAtAge (f tp x y) 3 | x <- [1.0, 1.5, 2.0]
+>           trees    = [ treeAtAge (f tp x y) 4 | x <- [1.0, 1.5, 2.0]
 >                                               , y <- [3, 6, 9] ]
 
 Trunk length vs. trunk-branch angles
 
 > trunkLength_trunkBranchAngles = trees
->     where f tp x y = tp { tpTrunkLengthIncrement = x
->                         , tpTrunkBranchAngles    = y
+>     where f tp x y = tp { tpTrunkLengthIncrementPerYear = x
+>                         , tpTrunkBranchAngles           = y
 >                         }
->           trees = [ treeAtAge (f tp x y) 2 
+>           trees = [ treeAtAge (f tp x y) 3 
 >                       | x <- [ 1.5, 2.0, 2.5 ]
 >                       , y <- [ [tau / 8, tau / 5.5,  tau / 6.8, tau / 6.2 ]
 >                              , [tau / 9, tau / 5,    tau / 7.2, tau / 6.2 ]
@@ -103,42 +103,42 @@ Trunk length vs. trunk-branch angles
 Whorls per year vs whorl size.
 
 > whorls_whorlSize = trees
->     where f tp x y = tp { tpTrunkLengthIncrement = 2.0
->                         , tpTrunkBranchAngles    = [ tau / 10,  tau / 4.5
->                                                    , tau / 6.5, tau / 5.8 ]
->                         , tpWhorlsPerYear        = x
->                         , tpWhorlSize            = y
+>     where f tp x y = tp { tpTrunkLengthIncrementPerYear = 2.0
+>                         , tpTrunkBranchAngles           = [ tau / 10,  tau / 4.5
+>                                                           , tau / 6.5, tau / 5.8 ]
+>                         , tpWhorlsPerYear               = x
+>                         , tpWhorlSize                   = y
 >                         }
->           trees = [ treeAtAge (f tp x y) 2 | x <- [ 5, 9, 13 ]
+>           trees = [ treeAtAge (f tp x y) 3 | x <- [ 5, 9, 13 ]
 >                                            , y <- [ 5, 8, 11 ] ]
 
 Side-subbranch length vs. Side-subbranch angle
 
 > branchLength_branchAngle = trees
->     where f tp x y = tp { tpTrunkLengthIncrement     = 2.0
->                         , tpTrunkBranchAngles        = [ tau / 6.5, tau / 5.8
->                                                        , tau / 10,  tau / 4.5 ]
->                         , tpWhorlsPerYear            = 13
->                         , tpWhorlSize                = 5
->                         , tpWhorlPhase               = tau / 2
->                         , tpBranchBranchLengthRatio2 = x
->                         , tpBranchBranchAngle        = y
+>     where f tp x y = tp { tpTrunkLengthIncrementPerYear = 2.0
+>                         , tpTrunkBranchAngles           = [ tau / 6.5, tau / 5.8
+>                                                           , tau / 10,  tau / 4.5 ]
+>                         , tpWhorlsPerYear               = 13
+>                         , tpWhorlSize                   = 5
+>                         , tpWhorlPhase                  = tau / 2
+>                         , tpBranchBranchLengthRatio2    = x
+>                         , tpBranchBranchAngle           = y
 >                         }
->           trees = [ treeAtAge (f tp x y) 2 | x <- [ 0.8, 1.2, 1.4 ]
+>           trees = [ treeAtAge (f tp x y) 3 | x <- [ 0.8, 1.2, 1.4 ]
 >                                            , y <- [ tau/5, tau/8, tau/11 ] ]
 
 Center-subbranch length vs. Side-subbranch length
 
 > centerBranchLength_sideBranchLength = trees
->     where f tp x y = tp { tpTrunkLengthIncrement     = 2.0
->                         , tpTrunkBranchAngles        = [ tau / 6.5, tau / 5.8
->                                                        , tau / 10,  tau / 4.5 ]
->                         , tpWhorlsPerYear            = 13
->                         , tpWhorlSize                = 5
->                         , tpWhorlPhase               = tau / 2
->                         , tpBranchBranchLengthRatio  = x
->                         , tpBranchBranchLengthRatio2 = y
->                         , tpBranchBranchAngle        = tau/5
+>     where f tp x y = tp { tpTrunkLengthIncrementPerYear = 2.0
+>                         , tpTrunkBranchAngles           = [ tau / 6.5, tau / 5.8
+>                                                           , tau / 10,  tau / 4.5 ]
+>                         , tpWhorlsPerYear               = 13
+>                         , tpWhorlSize                   = 5
+>                         , tpWhorlPhase                  = tau / 2
+>                         , tpBranchBranchLengthRatio     = x
+>                         , tpBranchBranchLengthRatio2    = y
+>                         , tpBranchBranchAngle           = tau/5
 >                         }
->           trees = [ treeAtAge (f tp x y) 2 | x <- [ 0.8, 1.0, 1.2 ]
+>           trees = [ treeAtAge (f tp x y) 3 | x <- [ 0.8, 1.0, 1.2 ]
 >                                            , y <- [ 0.8, 1.2, 1.4 ] ]

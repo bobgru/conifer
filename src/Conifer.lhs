@@ -19,53 +19,52 @@ i.e. parameters that control lengths and angles and such.
 **The Input: Tree Parameters**
 
 Our ideal tree will be completely determined by its "genes", the various
-parameters in `TreeParams`. The age of the tree is the number of recursive
-steps in its growth. As we are modeling a conifer, its structure is a main
-trunk that adds some number of whorls of branches each year and another 
-length of trunk, meanwhile adding another level of branching to existing branches.
+parameters in `TreeParams`. The age of the tree is roughly the number of recursive
+steps in its growth—each year corresponds to another level of branching. As we are
+modeling a conifer, its structure is a main trunk that adds some number of whorls
+of branches each year and another length of trunk, meanwhile adding another level
+of branching to existing branches.
 
 > data TreeParams = TreeParams {
->       tpAge                      :: Double
->     , tpTrunkLengthIncrement     :: Double
->     , tpTrunkBranchLengthRatio   :: Double
->     , tpTrunkBranchAngles        :: [Double]
->     , tpTrunkGirth               :: Double
->     , tpWhorlsPerYear            :: Int
->     , tpWhorlSize                :: Int
->     , tpWhorlPhase               :: Double
->     , tpBranchGirth              :: Double
->     , tpBranchBranchLengthRatio  :: Double
->     , tpBranchBranchLengthRatio2 :: Double
->     , tpBranchBranchAngle        :: Rad
+>       tpAge                         :: Double
+>     , tpTrunkLengthIncrementPerYear :: Double
+>     , tpTrunkBranchLengthRatio      :: Double
+>     , tpTrunkBranchAngles           :: [Double]
+>     , tpTrunkGirth                  :: Double
+>     , tpWhorlsPerYear               :: Int
+>     , tpWhorlSize                   :: Int
+>     , tpWhorlPhase                  :: Double
+>     , tpBranchGirth                 :: Double
+>     , tpBranchBranchLengthRatio     :: Double
+>     , tpBranchBranchLengthRatio2    :: Double
+>     , tpBranchBranchAngle           :: Rad
 >     } deriving (Show, Eq)
 
 > instance Default TreeParams where
 >     def = TreeParams {
->       tpAge                      = 5
->     , tpTrunkLengthIncrement     = 0.9
->     , tpTrunkBranchLengthRatio   = 0.7
->     , tpTrunkBranchAngles        = [tau / 6]
->     , tpTrunkGirth               = 1.0
->     , tpWhorlsPerYear            = 1
->     , tpWhorlSize                = 6
->     , tpWhorlPhase               = 0
->     , tpBranchGirth              = 1.0
->     , tpBranchBranchLengthRatio  = 0.8
->     , tpBranchBranchLengthRatio2 = 0.8
->     , tpBranchBranchAngle        = tau / 6
+>       tpAge                         = 5
+>     , tpTrunkLengthIncrementPerYear = 0.9
+>     , tpTrunkBranchLengthRatio      = 0.7
+>     , tpTrunkBranchAngles           = [tau / 6]
+>     , tpTrunkGirth                  = 1.0
+>     , tpWhorlsPerYear               = 1
+>     , tpWhorlSize                   = 6
+>     , tpWhorlPhase                  = 0
+>     , tpBranchGirth                 = 1.0
+>     , tpBranchBranchLengthRatio     = 0.8
+>     , tpBranchBranchLengthRatio2    = 0.8
+>     , tpBranchBranchAngle           = tau / 6
 >     }
 
-**The Data Structure: Tree, Whorl, Branch**
-
-A tree rises from its origin to its `tNode` where there is optionally
-another tree, and—every year after the first—a whorl. The tree may
-grow additional whorls during a year, which are spaced evenly up the
-trunk.
+**The Tree Data Structure**
 
 > data Tree a =
->     Leaf { lNode :: a }
 
->   | Tree {
+A tree rises from its origin to its `tNode` where there is
+another tree, and a whorl of branches. Having age as a continuous
+variable allows recursing per year with a remainder of extra growth.
+
+>     Tree {
 >       tNode     :: a
 >     , tAge      :: Double
 >     , tGirth    :: Double
@@ -82,6 +81,11 @@ into some number, possibly zero, of other branches.
 >     , bGirth      :: Double
 >     , bBranches   :: [Tree a]
 >     }
+
+A leaf represents the end of a branch, containing only its location.
+
+>   | Leaf { lNode :: a }
+
 >   deriving (Show, Eq)
 
 We can specialize the types for the three phases of tree development.
@@ -106,6 +110,14 @@ preserving its structure.
 > treeMap f (Tree p a g t bs) = Tree (f p) a g (treeMap f t) (map (treeMap f) bs)
 > treeMap f (Branch p a g bs) = Branch (f p) a g (map (treeMap f) bs)
 
+It will also be convenient to be able to fold a tree into another tree.
+
+> treeFold :: (a -> b -> a) -> a -> Tree b -> Tree a
+> treeFold f n (Leaf p) = Leaf (f n p)
+> treeFold f n (Tree p a g t bs) =
+>     Tree (f n p) a g (treeFold f (f n p) t) (map (treeFold f (f n p)) bs)
+> treeFold f n (Branch p a g bs) = Branch (f n p) a g (map (treeFold f (f n p)) bs)
+
 The tree parts are reduced to diagram primitives which can be folded into a single 
 diagram for rendering as an image.
 * `Trunk` is a section of trunk between points _p0_ and _p1_, with girth _g0_ at _p0_ and _g1_ at _p1_.
@@ -128,7 +140,7 @@ parent node.
 >     where age         = tpAge tp
 >           ageIncr     = 1 / fromIntegral (tpWhorlsPerYear tp)
 >           girth       = tpTrunkGirth tp
->           trunkIncr   = tpTrunkLengthIncrement tp * ageIncr
+>           trunkIncr   = tpTrunkLengthIncrementPerYear tp * ageIncr
 >           trunkTip    = p3 (0, 0, trunkIncr)
 >           newTree     = tree tpNext
 >           branches    = whorl tpNext
@@ -212,17 +224,7 @@ coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 > toAbsoluteP3 n p = n .+^ (p .-. origin)
 
 > toAbsolute :: RTree3 -> ATree3
-> toAbsolute = toAbsoluteTree origin
-
-> toAbsoluteTree :: P3 -> RTree3 -> ATree3
-> toAbsoluteTree n (Leaf p) = Leaf (toAbsoluteP3 n p)
-> toAbsoluteTree n (Tree p a g t bs) = Tree p' a g t' bs'
->     where p'  = toAbsoluteP3 n p
->           t'  = toAbsoluteTree p' t
->           bs' = map (toAbsoluteTree p') bs
-> toAbsoluteTree n (Branch p a g bs) = Branch p' a g bs'
->     where p'  = toAbsoluteP3 n p
->           bs' = map (toAbsoluteTree p') bs
+> toAbsolute = treeFold toAbsoluteP3 origin
 
 **Projecting the Tree onto 2D**
 
@@ -303,4 +305,3 @@ Produce a width based on age and girth characteristic.
 
 > renderTree :: TreeParams -> Diagram B R2
 > renderTree = draw . toPrim . mkAboveGround . projectXZ . toAbsolute . tree
-
