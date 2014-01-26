@@ -64,7 +64,7 @@ trunk.
 
 > data Tree a =
 >     Leaf { lNode :: a }
->
+
 >   | Tree {
 >       tNode     :: a
 >     , tAge      :: Double
