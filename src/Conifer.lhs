@@ -60,29 +60,26 @@ of branching to existing branches.
 
 > data Tree a =
 
-A tree rises from its origin to its `tNode` where there is
+A tree is parameterized on location type.
+
+A tree rises from its origin to its `nNode` where there is
 another tree, and a whorl of branches. Having age as a continuous
 variable allows recursing per year with a remainder of extra growth.
-
->     Tree {
->       tNode     :: a
->     , tAge      :: Double
->     , tGirth    :: Double
->     , tNext     :: Tree a
->     , tBranches :: [Tree a]
->     }
-
-A branch shoots out from its origin to its `bNode`, where it branches
+A branch shoots out from its origin to its `nNode`, where it branches
 into some number, possibly zero, of other branches.
 
->   | Branch {
->       bNode       :: a
->     , bAge        :: Double
->     , bGirth      :: Double
->     , bBranches   :: [Tree a]
+Trunks differ from branches in the composition of`nNodes`. In a trunk,
+`nNodes` contains another trunk and a whorl of branches. In a branch,
+`nNodes` contains the next level of branches.
+
+>     Node {
+>       nNode  :: a
+>     , nAge   :: Double
+>     , nGirth :: Double
+>     , nNodes :: [Tree a]
 >     }
 
-A leaf represents the end of a branch, containing only its location.
+A leaf represents the end of a trunk or branch, containing only its location.
 
 >   | Leaf { lNode :: a }
 
@@ -106,17 +103,23 @@ preserving its structure.
 >     fmap = treeMap
 
 > treeMap :: (a -> b) -> Tree a -> Tree b
-> treeMap f (Leaf p)          = Leaf (f p)
-> treeMap f (Tree p a g t bs) = Tree (f p) a g (treeMap f t) (map (treeMap f) bs)
-> treeMap f (Branch p a g bs) = Branch (f p) a g (map (treeMap f) bs)
+> treeMap f (Leaf n)        = Leaf (f n)
+> treeMap f (Node n a g ns) = Node (f n) a g (map (treeMap f) ns)
 
-It will also be convenient to be able to fold a tree into another tree.
+Transforming a tree from relative to absolute coordinates is not an associative operation.
+It is a fold of the node value through the tree from root to leaves.
 
 > treeFold :: (a -> b -> a) -> a -> Tree b -> Tree a
-> treeFold f n (Leaf p) = Leaf (f n p)
-> treeFold f n (Tree p a g t bs) =
->     Tree (f n p) a g (treeFold f (f n p) t) (map (treeFold f (f n p)) bs)
-> treeFold f n (Branch p a g bs) = Branch (f n p) a g (map (treeFold f (f n p)) bs)
+> treeFold f n0 (Leaf n)        = Leaf (f n0 n)
+> treeFold f n0 (Node n a g ns) = Node (f n0 n) a g (map (treeFold f (f n0 n)) ns)
+
+Rendering the tree to drawing primitives likewise isn't associative because it, too, involves
+folding a node value through the tree. In this case the result is a flat list, not a tree.
+The flattening function needs the node arguments, so for leaves we use dummy values.
+
+> flattenTree :: (a -> (a, Double, Double) -> [b]) -> a -> Tree a -> [b]
+> flattenTree f n0 (Leaf n)        = f n0 (n, -1, -1)
+> flattenTree f n0 (Node n a g ns) = f n0 (n, a, g) ++ concatMap (flattenTree f n) ns
 
 The tree parts are reduced to diagram primitives which can be folded into a single 
 diagram for rendering as an image.
@@ -134,37 +137,13 @@ We first build a tree with each node in its own coordinate space relative to its
 parent node.
 
 > tree :: TreeParams -> RTree3
-> tree tp = if age < ageIncr 
->               then Leaf trunkTip
->               else Tree trunkTip age girth newTree branches
->     where age         = tpAge tp
->           ageIncr     = 1 / fromIntegral (tpWhorlsPerYear tp)
->           girth       = tpTrunkGirth tp
->           trunkIncr   = tpTrunkLengthIncrementPerYear tp * ageIncr
->           trunkTip    = p3 (0, 0, trunkIncr)
->           newTree     = tree tpNext
->           branches    = whorl tpNext
->           tpNext      = (adjustAge (-ageIncr) . advancePhase . advanceTrunkBranchAngle) tp
-
-Some useful helper functions for manipulating `TreeParams`:
-
-> subYear :: TreeParams -> TreeParams
-> subYear      tp = tp { tpAge = tpAge tp - 1 }
-
-> adjustAge :: Double -> TreeParams -> TreeParams
-> adjustAge da tp = tp { tpAge = tpAge tp + da }
-
-> advancePhase :: TreeParams -> TreeParams
-> advancePhase tp = tp { tpWhorlPhase = wp + tau / (ws * wpy * 2) }
->     where wp  = tpWhorlPhase tp
->           ws  = fromIntegral (tpWhorlSize tp)
->           wpy = fromIntegral (tpWhorlsPerYear tp)
-
-> advanceTrunkBranchAngle :: TreeParams -> TreeParams
-> advanceTrunkBranchAngle tp = tp { tpTrunkBranchAngles = shiftList (tpTrunkBranchAngles tp) }
-
-> shiftList []       = []
-> shiftList (x : xs) = xs ++ [x]
+> tree tp = if age < ageIncr then Leaf node else Node node age girth nodes
+>     where age     = tpAge tp
+>           girth   = tpTrunkGirth tp
+>           node    = p3 (0, 0, tpTrunkLengthIncrementPerYear tp * ageIncr)
+>           nodes   = tree tpNext : whorl tpNext
+>           tpNext  = (adjustAge (-ageIncr) . advancePhase . advanceTrunkBranchAngle) tp
+>           ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
 
 A whorl is some number of branches, evenly spaced but at varying angle
 from the vertical. A whorl is rotated by the whorl phase, which changes
@@ -188,32 +167,52 @@ A branch shoots forward a certain length, then ends or splits into three branche
 going left, center, or right.
 
 > branch :: TreeParams -> P3 -> RTree3
-> branch tp p = if age < 1 then Leaf leafNode else Branch p age g bs
+> branch tp node = if age < 1 then Leaf leafNode else Node node age girth nodes
 >     where age   = tpAge tp
->           g     = tpBranchGirth tp
+>           girth = tpBranchGirth tp
 
 If the branch is less than a year old, it's a shoot with a leaf. The length
 is scaled down by its age.
 
->           leafNode = p # scale (age * tpBranchBranchLengthRatio tp)
+>           leafNode = node # scale (age * tpBranchBranchLengthRatio tp)
 
 Next year's subbranches continue straight, to the left and to the right. The straight
 subbranch grows at a possibly different rate from the side subbranches. Scale the
 branches to their full length. If they are leaves, they will be scaled back, as above.
 
->           bs     = map (branch tp') [l, c, r]
+>           nodes  = map (branch tp') [l, c, r]
 >           tp'    = subYear tp
->           l      = p # rotateXY   bba  # scale bblr2
->           c      = p                   # scale bblr
->           r      = p # rotateXY (-bba) # scale bblr2
+>           l      = node # rotateXY   bba  # scale bblr2
+>           c      = node                   # scale bblr
+>           r      = node # rotateXY (-bba) # scale bblr2
 >           bba    = tpBranchBranchAngle tp
 >           bblr   = tpBranchBranchLengthRatio tp
 >           bblr2  = tpBranchBranchLengthRatio2 tp
+
+Some helper functions for building the tree:
 
 > rotateXY :: Rad -> P3 -> P3
 > rotateXY a p = p3 (x', y', z)
 >     where (x, y, z) = unp3 p
 >           (x', y')  = unr2 (rotate a (r2 (x, y)))
+
+> subYear :: TreeParams -> TreeParams
+> subYear tp = tp { tpAge = tpAge tp - 1 }
+
+> adjustAge :: Double -> TreeParams -> TreeParams
+> adjustAge da tp = tp { tpAge = tpAge tp + da }
+
+> advancePhase :: TreeParams -> TreeParams
+> advancePhase tp = tp { tpWhorlPhase = wp + tau / (ws * wpy * 2) }
+>     where wp  = tpWhorlPhase tp
+>           ws  = fromIntegral (tpWhorlSize tp)
+>           wpy = fromIntegral (tpWhorlsPerYear tp)
+
+> advanceTrunkBranchAngle :: TreeParams -> TreeParams
+> advanceTrunkBranchAngle tp = tp { tpTrunkBranchAngles = shiftList (tpTrunkBranchAngles tp) }
+
+> shiftList []       = []
+> shiftList (x : xs) = xs ++ [x]
 
 **Converting from Relative to Absolute Coordinates**
 
@@ -249,21 +248,27 @@ Assuming the tree is growing on flat ground, we can't have the branches digging 
 **Reducing the Tree to Primitives from Absolute Coordinates**
 
 > toPrim :: ATree2 -> [TreePrim]
-> toPrim = treeToPrim origin
+> toPrim = flattenTree treeToPrim origin
 
-> treeToPrim :: P2 -> ATree2 -> [TreePrim]
-> treeToPrim n (Leaf p) = [Tip n p]
-> treeToPrim n (Tree p a g t bs) = trunk ++ branches ++ nextTree
->     where trunk    = trunkToPrim n p a g
->           branches = concatMap (branchToPrim p) bs
->           nextTree = treeToPrim p t
+Our flattening function needs the information from a node,
+but not the tree structure, so we receive it as a tuple.
 
-> trunkToPrim :: P2 -> P2 -> Double -> Double -> [TreePrim]
-> trunkToPrim n p a g = [Trunk n p (girth a g) (girth (a-1) g)]
+> treeToPrim :: P2 -> (P2, Double, Double) -> [TreePrim]
+> treeToPrim n0 (n, a, g) = [if a < 0 then tip else node]
+>     where tip   = Tip n0 n
+>           node  = if isVertical (n .-. n0)
+>                       then Trunk n0 n (girth a g) (girth (a-1) g)
+>                       else Stem  n0 n (girth a g)
 
-> branchToPrim :: P2 -> ATree2 -> [TreePrim]
-> branchToPrim n (Leaf p)          = [Tip n p]
-> branchToPrim n (Branch p a g bs) = Stem n p (girth a g) : concatMap (branchToPrim p) bs
+If a node is directly above another, we can treat it as a section of trunk.
+
+> isVertical :: R2 -> Bool
+> isVertical v = let (x,_) = unr2 v in equivZero x
+
+A `Double` is equivalent to 0.0 if it's close enough.
+
+> equivZero :: Double -> Bool
+> equivZero x = abs x < 1e-6
 
 **Drawing the Primitives**
 
@@ -299,7 +304,7 @@ correct girths at top and bottom.
 Produce a width based on age and girth characteristic.
 
 > girth :: Double -> Double -> Double
-> girth a g = (a+1) * g * 0.01
+> girth a g = (max ((a+1) * g) 1) * 0.01
 
 **Rendering a Tree from Parameters**
 
