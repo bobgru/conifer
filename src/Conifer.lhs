@@ -58,8 +58,6 @@ of branching to existing branches.
 
 **The Tree Data Structure**
 
-> data Tree a =
-
 A tree is parameterized on location type.
 
 A tree rises from its origin to its `nNode` where there is
@@ -72,17 +70,16 @@ Trunks differ from branches in the composition of`nNodes`. In a trunk,
 `nNodes` contains another trunk and a whorl of branches. In a branch,
 `nNodes` contains the next level of branches.
 
+A leaf represents the end of a trunk or branch, containing only its location.
+
+> data Tree a =
 >     Node {
 >       nNode  :: a
 >     , nAge   :: Double
 >     , nGirth :: Double
 >     , nNodes :: [Tree a]
 >     }
-
-A leaf represents the end of a trunk or branch, containing only its location.
-
 >   | Leaf { lNode :: a }
-
 >   deriving (Show, Eq)
 
 We can specialize the types for the three phases of tree development.
@@ -151,10 +148,9 @@ from one to the next.
 
 > whorl :: TreeParams -> [RTree3]
 > whorl tp = [ branch tp (pt i) | i <- [0 .. numBranches - 1] ]
->     where pt i = p3 ( tblr * cos (rotation i)
->                     , tblr * sin (rotation i)
->                     , tblr * cos (tba i))
-
+>     where pt i        = p3 ( tblr * cos (rotation i)
+>                            , tblr * sin (rotation i)
+>                            , tblr * cos (tba i))
 >           tblr        = tpTrunkBranchLengthRatio tp
 >           phase       = tpWhorlPhase tp
 >           numBranches = tpWhorlSize tp
@@ -301,7 +297,8 @@ correct girths at top and bottom.
 > drawTip :: P2 -> P2 -> Diagram B R2 
 > drawTip p0 p1 = drawStem p0 p1 0.01
 
-Produce a width based on age and girth characteristic.
+Produce a width based on age and girth characteristic. Don't let the
+width go below the minimum.
 
 > girth :: Double -> Double -> Double
 > girth a g = (max ((a+1) * g) 1) * 0.01
