@@ -15,7 +15,7 @@ where `-o` sets the output filename, and `-w` sets the diagram width.
 > main   = defaultMain (renderTree tp # centerXY # pad 1.2)
 
 > tp = def {
->       tpAge                      = 2
+>       tpAge                      = 3
 >     , tpTrunkLengthIncrement     = 1.4
 >     , tpTrunkBranchLengthRatio   = 0.6
 >     , tpTrunkBranchAngles        = [tau / 9, tau / 7, tau / 4.8 , tau / 6.5 ]
