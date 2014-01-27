@@ -197,7 +197,7 @@ Helper functions for building the tree:
 >           (x', y')  = unr2 (rotate a (r2 (x, y)))
 
 > subYear :: TreeParams -> TreeParams
-> subYear tp = adjustAge (-1) tp
+> subYear = adjustAge (-1)
 
 > adjustAge :: Double -> TreeParams -> TreeParams
 > adjustAge da tp = tp { tpAge = tpAge tp + da }
