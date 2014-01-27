@@ -75,9 +75,9 @@ A leaf represents the end of a trunk or branch, containing only its location.
 > data Tree a = Leaf a | Node a [Tree a]
 >     deriving (Show, Eq)
 
-The payload of a leaf or node is a `TreeInfo` containing the location
-in space of the node, its age, and its girth (i.e. of the section of
-trunk or branch ending at the node).
+The payload of a leaf or node is a `TreeInfo` containing the polymorphic
+location of the node, and its range of girth (i.e. of the section
+of trunk or branch ending at the node).
 
 > type TreeInfo a = (a, Double, Double)
 
@@ -118,12 +118,11 @@ folding a node value through the tree. In this case the result is a flat list, n
 
 The tree parts are reduced to diagram primitives which can be folded into a single 
 diagram for rendering as an image.
-* `Trunk` is a section of trunk between points _p0_ and _p1_, with girth _g0_ at _p0_ and _g1_ at _p1_.
-* `Stem` is a section of branch between points _p0_ and _p1_ with girth _g_.
-* `Tip` is the tip of a branch, between points _p0_ and _p1_.
+* `Trunk` is a section of trunk or branch between points _p0_ and _p1_, 
+   with girth _g0_ at _p0_ and _g1_ at _p1_.
+* `Tip` is the tip of a tree or branch, between points _p0_ and _p1_.
 
 > data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double }
->               | Stem  { p0::P2, p1::P2, g::Double }
 >               | Tip   { p0::P2, p1::P2 }
 
 **Growing the Tree**
@@ -132,9 +131,13 @@ We first build a tree with each node in its own coordinate space relative to its
 parent node.
 
 > tree :: TreeParams -> RTree3
-> tree tp = if age < ageIncr then Leaf (node, 0, -1) else Node (node, age, girth) nodes
+> tree tp = if age < ageIncr
+>               then Leaf (node, -1, -1)
+>               else Node (node, girth0, girth1) nodes
 >     where age     = tpAge tp
->           girth   = tpTrunkGirth tp
+>           g       = tpTrunkGirth tp
+>           girth0  = girth age g
+>           girth1  = girth (age - ageIncr) g
 >           node    = r3 (0, 0, tpTrunkLengthIncrementPerYear tp * ageIncr)
 >           nodes   = tree tpNext : whorl tpNext
 >           tpNext  = (adjustAge (-ageIncr) . advancePhase . advanceTrunkBranchAngle) tp
@@ -161,9 +164,12 @@ A branch shoots forward a certain length, then ends or splits into three branche
 going left, center, or right.
 
 > branch :: TreeParams -> R3 -> RTree3
-> branch tp node = if age < 1 then Leaf (leafNode, 0, -1) else Node (node, age, girth) nodes
->     where age   = tpAge tp
->           girth = tpBranchGirth tp
+> branch tp node = if age < 1
+>                      then Leaf (leafNode, -1, -1)
+>                      else Node (node, girth0, girth0) nodes
+>     where age    = tpAge tp
+>           g      = tpBranchGirth tp
+>           girth0 = girth (age - 1) g
 
 If the branch is less than a year old, it's a shoot with a leaf. The length
 is scaled down by its age.
@@ -183,7 +189,7 @@ branches to their full length. If they are leaves, they will be scaled back, as 
 >           bblr   = tpBranchBranchLengthRatio tp
 >           bblr2  = tpBranchBranchLengthRatio2 tp
 
-Some helper functions for building the tree:
+Helper functions for building the tree:
 
 > rotateXY :: Rad -> R3 -> R3
 > rotateXY a v = r3 (x', y', z)
@@ -191,7 +197,7 @@ Some helper functions for building the tree:
 >           (x', y')  = unr2 (rotate a (r2 (x, y)))
 
 > subYear :: TreeParams -> TreeParams
-> subYear tp = tp { tpAge = tpAge tp - 1 }
+> subYear tp = adjustAge (-1) tp
 
 > adjustAge :: Double -> TreeParams -> TreeParams
 > adjustAge da tp = tp { tpAge = tpAge tp + da }
@@ -208,67 +214,61 @@ Some helper functions for building the tree:
 > shiftList []       = []
 > shiftList (x : xs) = xs ++ [x]
 
+Produce a width based on age and girth characteristic. Don't let the
+width go below the minimum.
+
+> girth :: Double -> Double -> Double
+> girth a g = 0.01 * max (a * g) 1
+
 **Converting from Relative to Absolute Coordinates**
 
 Convert the tree of relative coordinate spaces into a single coherent absolute
 coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 
-> infoR3ToP3 :: TreeInfo P3 -> TreeInfo R3 -> TreeInfo P3
-> infoR3ToP3 (n0,_,_) (n,a,g) = (n0 .+^ n, a, g)
-
 > toAbsolute :: RTree3 -> ATree3
-> toAbsolute = treeFold infoR3ToP3 (origin,0,0)
+> toAbsolute = treeFold infoR3ToP3 (origin, 0, 0)
+
+> infoR3ToP3 :: TreeInfo P3 -> TreeInfo R3 -> TreeInfo P3
+> infoR3ToP3 (p, _, _) (v, g0, g1) = (p .+^ v, g0, g1)
 
 **Projecting the Tree onto 2D**
 
 We are rendering the tree from the side, so we simply discard the _y_-coordinate.
 
-> xz :: P3 -> P2
-> xz p = p2 (x, z) where (x, _, z) = unp3 p
-
-> infoXZ :: TreeInfo P3 -> TreeInfo P2
-> infoXZ (n, a, g) = (xz n, a, g)
-
 > projectXZ :: ATree3 -> ATree2
 > projectXZ = fmap infoXZ
 
-**Respect the Earth**
+> infoXZ :: TreeInfo P3 -> TreeInfo P2
+> infoXZ (n, g0, g1) = (xz n, g0, g1)
+
+> xz :: P3 -> P2
+> xz p = p2 (x, z) where (x, _, z) = unp3 p
+
+**Respecting the Earth**
 
 Assuming the tree is growing on flat ground, we can't have the branches digging into it.
-
-> aboveGround :: P2 -> P2
-> aboveGround p = p2 (x, max 0 z) where (x, z) = unp2 p
-
-> infoAboveGround :: TreeInfo P2 -> TreeInfo P2
-> infoAboveGround (n, a, g) = (aboveGround n, a, g)
 
 > mkAboveGround :: ATree2 -> ATree2
 > mkAboveGround = fmap infoAboveGround
 
+> infoAboveGround :: TreeInfo P2 -> TreeInfo P2
+> infoAboveGround (n, g0, g1) = (aboveGround n, g0, g1)
+
+> aboveGround :: P2 -> P2
+> aboveGround p = p2 (x, max 0 z) where (x, z) = unp2 p
+
 **Reducing the Tree to Primitives from Absolute Coordinates**
 
 > toPrim :: ATree2 -> [TreePrim]
-> toPrim = flattenTree treeToPrim (origin,0,0)
+> toPrim = flattenTree treeToPrim (origin, 0, 0)
 
 Our flattening function needs the information from a node,
-but not the tree structure, so we receive it as a tuple.
+but not the tree structure.
 
 > treeToPrim :: TreeInfo P2 -> TreeInfo P2 -> [TreePrim]
-> treeToPrim (n0,_,_) (n, a, g) = [if g < 0 then tip else node]
->     where tip   = Tip n0 n
->           node  = if isVertical (n .-. n0)
->                       then Trunk n0 n (girth a g) (girth (a-1) g)
->                       else Stem  n0 n (girth a g)
-
-If a node is directly above another, we can treat it as a section of trunk.
-
-> isVertical :: R2 -> Bool
-> isVertical v = let (x,_) = unr2 v in equivZero x
-
-A `Double` is equivalent to 0.0 if it's close enough.
-
-> equivZero :: Double -> Bool
-> equivZero x = abs x < 1e-6
+> treeToPrim (n0, _, _) (n, g0, g1) = [if g0 < 0 then tip else node]
+>     where tip  = Tip n0 n
+>           node = Trunk n0 n g0 g1
 
 **Drawing the Primitives**
 
@@ -277,35 +277,27 @@ A `Double` is equivalent to 0.0 if it's close enough.
 
 > drawPrim :: TreePrim -> Diagram B R2
 > drawPrim (Trunk p0 p1 g0 g1) = drawTrunk p0 p1 g0 g1
-> drawPrim (Stem p0 p1 g)      = drawStem p0 p1 g
 > drawPrim (Tip p0 p1)         = drawTip p0 p1
 
-Draw a section of trunk (implicitly vertical) as a trapezoid with the
-correct girths at top and bottom.
+Draw a section of trunk or branch as a trapezoid with the
+correct girths at each end.
 
 > drawTrunk :: P2 -> P2 -> Double -> Double -> Diagram B R2
-> drawTrunk p0 p1 g0 g1 = trunk
->     where trunk = (closeLine . lineFromVertices . map p2) [
->                         ( g0/2,  y0)
->                       , ( g1/2,  y0 + y1)
->                       , (-g1/2,  y0 + y1)
->                       , (-g0/2,  y0)
->                       ] 
->                   # strokeLoop # fc black # lw 0.01 # centerX
->           y0 = (snd . unp2) p0
->           y1 = (snd . unp2) p1
-
-> drawStem :: P2 -> P2 -> Double -> Diagram B R2 
-> drawStem p0 p1 g = position [(p0, fromOffsets [ p1 .-. p0 ] # lw g)]
+> drawTrunk p0 p1 g0 g1 = place trunk p0
+>     where trunk = (closeLine . lineFromVertices) [ p0, a, b, c, d ]
+>                   # strokeLoop 
+>                   # fc black 
+>                   # lw 0.01 
+>           n = (p1 .-. p0) # rotateBy (1/4) # normalized
+>           g0_2 = g0 / 2
+>           g1_2 = g1 / 2
+>           a = p0 .-^ (g0_2 *^ n)
+>           b = p1 .-^ (g1_2 *^ n)
+>           c = p1 .+^ (g1_2 *^ n)
+>           d = p0 .+^ (g0_2 *^ n)
 
 > drawTip :: P2 -> P2 -> Diagram B R2 
-> drawTip p0 p1 = drawStem p0 p1 0.01
-
-Produce a width based on age and girth characteristic. Don't let the
-width go below the minimum.
-
-> girth :: Double -> Double -> Double
-> girth a g = (max ((a+1) * g) 1) * 0.01
+> drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
 
 **Rendering a Tree from Parameters**
 
