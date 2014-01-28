@@ -81,7 +81,7 @@ nodes from root to leaves.
 > treeFold f a0 (Leaf a)    = Leaf (f a0 a)
 > treeFold f a0 (Node a ns) = Node (f a0 a) (map (treeFold f (f a0 a)) ns)
 
-The `flattenTree` function is similar to treeFold, but flattens a tree into a list
+The `flattenTree` function is similar to `treeFold`, but flattens a tree into a list
 in the process.
 
 > flattenTree :: (a -> a -> [b]) -> a -> Tree a -> [b]
@@ -190,6 +190,11 @@ modeling a conifer, its structure is a main trunk that adds some number of whorl
 of branches each year and another length of trunk, meanwhile adding another level
 of branching to existing branches.
 
+One major concession to arbitrary aesthetics is the list of trunk branch angles,
+which led to a fuller and less regular look, important for the original application
+of this code. A more realistic approach would be to model random deviations from
+the regular growth.
+
 > data TreeParams = TreeParams {
 >       tpAge                         :: Double
 >     , tpTrunkLengthIncrementPerYear :: Double
@@ -223,11 +228,9 @@ of branching to existing branches.
 
 **Growing a Conifer**
 
-A tree rises from its origin to a node where there is
-another tree, and a whorl of branches. Having age as a continuous
-variable allows recursing per year with a remainder of extra growth.
-A branch shoots out from its origin to a node, where it branches
-into some number, possibly zero, of other branches.
+Our tree rises from its origin to a node where there is another tree, and
+a whorl of branches.  A branch shoots out from its origin to a node, where
+it branches into some number, possibly zero, of other branches.
 
 Trunks differ from branches in the composition of their subnodes. A trunk
 contains another trunk and a whorl of branches. A branch contains the next
@@ -235,8 +238,12 @@ level of branches.
 
 A leaf represents the end of a trunk or branch, containing only its location.
 
+Age is represented as a continuous variable which allows recursing once per year,
+increasing the level of branching, with a remainder of extra growth, leading to
+the pyramidal structure of a real conifer.
+
 We build a tree with each node in its own coordinate space relative to its 
-parent node.
+parent node, which is the natural way to use the diagrams package.
 
 > tree :: TreeParams -> RTree3
 > tree tp = if age < ageIncr
@@ -252,7 +259,8 @@ parent node.
 >           ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
 
 A whorl is some number of branches, evenly spaced but at varying angle
-from the vertical. A whorl is rotated by the whorl phase, which changes
+from the vertical (an acknowledged hack to "shake up" the otherwise rigidly
+regular tree a little). A whorl is rotated by the whorl phase, which changes
 from one to the next.
 
 > whorl :: TreeParams -> [RTree3]
@@ -269,7 +277,7 @@ from one to the next.
 >           tba i       = tbas !! (i `mod` n)
 
 A branch shoots forward a certain length, then ends or splits into three branches,
-going left, center, or right.
+going left, center, and right.
 
 > branch :: TreeParams -> R3 -> RTree3
 > branch tp node = if age < 1
