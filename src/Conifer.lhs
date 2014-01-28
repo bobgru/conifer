@@ -23,11 +23,14 @@ a conifer.
 >                )
 > where 
 
-> import Diagrams.Prelude
+> import Diagrams.Prelude hiding (angleBetween, rotationAbout, direction)
 > import Diagrams.Backend.SVG
 > import Diagrams.Coordinates
 > import Diagrams.ThreeD.Types
+> import Diagrams.ThreeD.Transform
+> import Diagrams.ThreeD.Vector
 > import Data.Default.Class
+> import Data.Cross
 
 **The Tree Data Structure**
 
@@ -298,9 +301,17 @@ branches to their full length. If they are leaves, they will be scaled back, as 
 
 >           nodes  = map (branch tp') [l, c, r]
 >           tp'    = subYear tp
->           l      = node # rotateXY   bba  # scale bblr2
->           c      = node                   # scale bblr
->           r      = node # rotateXY (-bba) # scale bblr2
+
+>           l      = node # transform (t2   bba)  # scale bblr2
+>           r      = node # transform (t2 (-bba)) # scale bblr2
+>           c      = node                         # scale bblr
+
+>           t2 a   = conjugate t1 (rotationAbout origin zAxis a)
+>           t1     = rotationAbout origin nAxis angle
+>           zAxis  = (asSpherical . direction) unitZ
+>           nAxis  = (asSpherical . direction) (cross3 unitZ node)
+>           angle  = 1/4 - ((asTurn . angleBetween unitZ) node)
+
 >           bba    = tpBranchBranchAngle tp
 >           bblr   = tpBranchBranchLengthRatio tp
 >           bblr2  = tpBranchBranchLengthRatio2 tp
