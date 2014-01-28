@@ -4,10 +4,23 @@ A Virtual Conifer
 **Introduction**
 
 This project is to model a conifer as the expression of a set of "genes",
-i.e. parameters that control lengths and angles and such.
+i.e. parameters that control lengths and angles and such, and to draw
+a picture of it.
+
+We'll start with a generic data structure and combinators to apply
+functions to tree components in various ways. We'll also establish a
+pipeline to produce a drawing of a tree.
+
+The final part is the specification and growth of the kind of tree we want,
+a conifer.
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
-> module Conifer
+> module Conifer ( Tree
+>                , renderTree
+>                , TreeParams(..)
+>                , TreeInfo, RTree3
+>                , tree
+>                )
 > where 
 
 > import Diagrams.Prelude
@@ -16,7 +29,159 @@ i.e. parameters that control lengths and angles and such.
 > import Diagrams.ThreeD.Types
 > import Data.Default.Class
 
-**The Input: Tree Parameters**
+**The Tree Data Structure**
+
+A `Tree` is a straightforward tree represented by `Leaf` and `Node` constructors,
+with a polymorphic payload in each.
+
+> data Tree a = Leaf a | Node a [Tree a]
+>     deriving (Show, Eq)
+
+The payload of a leaf or node is a `TreeInfo` parameterized on location
+type, and containing the location, the girth at its origin (the location of
+which is implicit), and the girth at its location.
+
+> type TreeInfo a = (a, Double, Double)
+
+We specialize the types for the three phases of tree development.
+The tree grows as type `RTree3` (3D tree with relative coordinates), 
+is converted to `ATree3` (3D tree with absolute coordinates), and
+is projected to `ATree2` (2D tree with absolute coordinates) before 
+being flattened to a list of primitive drawing elements.
+
+> type RTree3 = Tree (TreeInfo R3)
+> type ATree3 = Tree (TreeInfo P3)
+> type ATree2 = Tree (TreeInfo P2)
+
+The tree is ultimately converted to context-free drawing instructions
+which when carried out produce diagrams.
+* `Trunk` is a section of trunk or branch between points _p0_ and _p1_, 
+   with girth _g0_ at _p0_ and _g1_ at _p1_.
+* `Tip` is the tip of a tree or branch, between points _p0_ and _p1_.
+
+> data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double }
+>               | Tip   { p0::P2, p1::P2 }
+
+**Tree Combinators**
+
+We need several ways of applying a function throughout a tree, sometimes preserving its
+structure, sometimes not.
+
+The `treeMap` function is a functor that applies a function uniformly throughout the tree.
+
+> instance Functor Tree where fmap = treeMap
+> treeMap :: (a -> b) -> Tree a -> Tree b
+> treeMap f (Leaf a)    = Leaf (f a)
+> treeMap f (Node a ns) = Node (f a) (map (treeMap f) ns)
+
+The `treeFold` function preserves tree structure, but iterates a function over all
+nodes from root to leaves.
+
+> treeFold :: (b -> a -> b) -> b -> Tree a -> Tree b
+> treeFold f a0 (Leaf a)    = Leaf (f a0 a)
+> treeFold f a0 (Node a ns) = Node (f a0 a) (map (treeFold f (f a0 a)) ns)
+
+The `flattenTree` function is similar to treeFold, but flattens a tree into a list
+in the process.
+
+> flattenTree :: (a -> a -> [b]) -> a -> Tree a -> [b]
+> flattenTree f a0 (Leaf a)    = f a0 a
+> flattenTree f a0 (Node a ns) = f a0 a ++ concatMap (flattenTree f a) ns
+
+**Creating a Drawing of a Tree**
+
+Given a tree, grown by any policy, convert it to a diagram. The pipeline
+of functions converts the original `RTree3`—most convenient during construction—to `ATree3`
+then to `ATree2`, which are convenient for further processing.
+
+> renderTree :: RTree3 -> Diagram B R2
+> renderTree = draw . toPrim . projectXZ . mkAboveGround . toAbsolute
+
+**Converting from Relative to Absolute Coordinates**
+
+Convert the tree of relative coordinate spaces into a single coherent absolute
+coordinate space, which will make projection onto the _x_-_z_-plane trivial.
+
+> toAbsolute :: RTree3 -> ATree3
+> toAbsolute = treeFold infoR3ToP3 (origin, 0, 0)
+
+> infoR3ToP3 :: TreeInfo P3 -> TreeInfo R3 -> TreeInfo P3
+> infoR3ToP3 (p, _, _) (v, g0, g1) = (p .+^ v, g0, g1)
+
+**Respecting the Earth**
+
+Assuming the tree is growing on flat ground, we can't have the branches
+digging into it.
+
+> mkAboveGround :: ATree3 -> ATree3
+> mkAboveGround = fmap infoAboveGround
+
+> infoAboveGround :: TreeInfo P3 -> TreeInfo P3
+> infoAboveGround (n, g0, g1) = (aboveGround n, g0, g1)
+
+> aboveGround :: P3 -> P3
+> aboveGround p = p3 (x, y, max 0 z) where (x, y, z) = unp3 p
+
+**Projecting the Tree onto 2D**
+
+We are rendering the tree from the side, so we simply discard the _y_-coordinate.
+We could project onto another plane and the rest of the pipeline would work.
+
+> projectXZ :: ATree3 -> ATree2
+> projectXZ = fmap infoXZ
+
+> infoXZ :: TreeInfo P3 -> TreeInfo P2
+> infoXZ (n, g0, g1) = (xz n, g0, g1)
+
+> xz :: P3 -> P2
+> xz p = p2 (x, z) where (x, _, z) = unp3 p
+
+**Reducing the Tree to Primitives from Absolute Coordinates**
+
+Given a tree projected onto a plane, convert it to a list
+of drawing instructions.
+
+> toPrim :: ATree2 -> [TreePrim]
+> toPrim = flattenTree treeToPrim (origin, 0, 0)
+
+> treeToPrim :: TreeInfo P2 -> TreeInfo P2 -> [TreePrim]
+> treeToPrim (n0, _, _) (n, g0, g1) = [if g0 < 0 then tip else node]
+>     where tip  = Tip n0 n
+>           node = Trunk n0 n g0 g1
+
+**Drawing the Primitives**
+
+Execute the drawing instructions as applications of functions from
+the diagrams package, producing a diagram as output.
+
+> draw :: [TreePrim] -> Diagram B R2
+> draw = mconcat . map drawPrim
+
+> drawPrim :: TreePrim -> Diagram B R2
+> drawPrim (Trunk p0 p1 g0 g1) = drawTrunk p0 p1 g0 g1
+> drawPrim (Tip p0 p1)         = drawTip p0 p1
+
+Draw a section of trunk or branch as a trapezoid with the
+correct girths at each end.
+
+> drawTrunk :: P2 -> P2 -> Double -> Double -> Diagram B R2
+> drawTrunk p0 p1 g0 g1 = place trunk p0
+>     where trunk = (closeLine . lineFromVertices) [ p0, a, b, c, d ]
+>                   # strokeLoop 
+>                   # fc black 
+>                   # lw 0.01 
+>           n = (p1 .-. p0) # rotateBy (1/4) # normalized
+>           g0_2 = g0 / 2
+>           g1_2 = g1 / 2
+>           a = p0 .-^ (g0_2 *^ n)
+>           b = p1 .-^ (g1_2 *^ n)
+>           c = p1 .+^ (g1_2 *^ n)
+>           d = p0 .+^ (g0_2 *^ n)
+
+> drawTip :: P2 -> P2 -> Diagram B R2 
+> drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
+
+**Specifying a Conifer**
 
 Our ideal tree will be completely determined by its "genes", the various
 parameters in `TreeParams`. The age of the tree is roughly the number of recursive
@@ -56,9 +221,7 @@ of branching to existing branches.
 >     , tpBranchBranchAngle           = tau / 6
 >     }
 
-**The Tree Data Structure**
-
-A tree is parameterized on payload type.
+**Growing a Conifer**
 
 A tree rises from its origin to a node where there is
 another tree, and a whorl of branches. Having age as a continuous
@@ -72,62 +235,7 @@ level of branches.
 
 A leaf represents the end of a trunk or branch, containing only its location.
 
-> data Tree a = Leaf a | Node a [Tree a]
->     deriving (Show, Eq)
-
-The payload of a leaf or node is a `TreeInfo` containing the polymorphic
-location of the node, and its range of girth (i.e. of the section
-of trunk or branch ending at the node).
-
-> type TreeInfo a = (a, Double, Double)
-
-We can specialize the types for the three phases of tree development.
-The tree grows as type `RTree3` (3D tree with relative coordinates), 
-is converted to `ATree3` (3D tree with absolute coordinates), and
-is projected to `ATree2` (2D tree with absolute coordinates) before 
-reduction to tree-primitives. The primitives do not retain the tree
-structure.
-
-> type RTree3 = Tree (TreeInfo R3)
-> type ATree3 = Tree (TreeInfo P3)
-> type ATree2 = Tree (TreeInfo P2)
-
-It will be convenient to be able to apply a function throughout the tree while
-preserving its structure.
-
-> instance Functor Tree where
->     fmap = treeMap
-
-> treeMap :: (a -> b) -> Tree a -> Tree b
-> treeMap f (Leaf a)    = Leaf (f a)
-> treeMap f (Node a ns) = Node (f a) (map (treeMap f) ns)
-
-Transforming a tree from relative to absolute coordinates is not an associative operation.
-It is a fold of the node value through the tree from root to leaves.
-
-> treeFold :: (b -> a -> b) -> b -> Tree a -> Tree b
-> treeFold f a0 (Leaf a)    = Leaf (f a0 a)
-> treeFold f a0 (Node a ns) = Node (f a0 a) (map (treeFold f (f a0 a)) ns)
-
-Rendering the tree to drawing primitives likewise isn't associative because it, too, involves
-folding a node value through the tree. In this case the result is a flat list, not a tree.
-
-> flattenTree :: (a -> a -> [b]) -> a -> Tree a -> [b]
-> flattenTree f a0 (Leaf a)    = f a0 a
-> flattenTree f a0 (Node a ns) = f a0 a ++ concatMap (flattenTree f a) ns
-
-The tree parts are reduced to diagram primitives which can be folded into a single 
-diagram for rendering as an image.
-* `Trunk` is a section of trunk or branch between points _p0_ and _p1_, 
-   with girth _g0_ at _p0_ and _g1_ at _p1_.
-* `Tip` is the tip of a tree or branch, between points _p0_ and _p1_.
-
-> data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double }
->               | Tip   { p0::P2, p1::P2 }
-
-**Growing the Tree**
-
-We first build a tree with each node in its own coordinate space relative to its 
+We build a tree with each node in its own coordinate space relative to its 
 parent node.
 
 > tree :: TreeParams -> RTree3
@@ -219,87 +327,3 @@ width go below the minimum.
 
 > girth :: Double -> Double -> Double
 > girth a g = 0.01 * max (a * g) 1
-
-**Converting from Relative to Absolute Coordinates**
-
-Convert the tree of relative coordinate spaces into a single coherent absolute
-coordinate space, which will make projection onto the _x_-_z_-plane trivial.
-
-> toAbsolute :: RTree3 -> ATree3
-> toAbsolute = treeFold infoR3ToP3 (origin, 0, 0)
-
-> infoR3ToP3 :: TreeInfo P3 -> TreeInfo R3 -> TreeInfo P3
-> infoR3ToP3 (p, _, _) (v, g0, g1) = (p .+^ v, g0, g1)
-
-**Projecting the Tree onto 2D**
-
-We are rendering the tree from the side, so we simply discard the _y_-coordinate.
-
-> projectXZ :: ATree3 -> ATree2
-> projectXZ = fmap infoXZ
-
-> infoXZ :: TreeInfo P3 -> TreeInfo P2
-> infoXZ (n, g0, g1) = (xz n, g0, g1)
-
-> xz :: P3 -> P2
-> xz p = p2 (x, z) where (x, _, z) = unp3 p
-
-**Respecting the Earth**
-
-Assuming the tree is growing on flat ground, we can't have the branches digging into it.
-
-> mkAboveGround :: ATree2 -> ATree2
-> mkAboveGround = fmap infoAboveGround
-
-> infoAboveGround :: TreeInfo P2 -> TreeInfo P2
-> infoAboveGround (n, g0, g1) = (aboveGround n, g0, g1)
-
-> aboveGround :: P2 -> P2
-> aboveGround p = p2 (x, max 0 z) where (x, z) = unp2 p
-
-**Reducing the Tree to Primitives from Absolute Coordinates**
-
-> toPrim :: ATree2 -> [TreePrim]
-> toPrim = flattenTree treeToPrim (origin, 0, 0)
-
-Our flattening function needs the information from a node,
-but not the tree structure.
-
-> treeToPrim :: TreeInfo P2 -> TreeInfo P2 -> [TreePrim]
-> treeToPrim (n0, _, _) (n, g0, g1) = [if g0 < 0 then tip else node]
->     where tip  = Tip n0 n
->           node = Trunk n0 n g0 g1
-
-**Drawing the Primitives**
-
-> draw :: [TreePrim] -> Diagram B R2
-> draw = mconcat . map drawPrim
-
-> drawPrim :: TreePrim -> Diagram B R2
-> drawPrim (Trunk p0 p1 g0 g1) = drawTrunk p0 p1 g0 g1
-> drawPrim (Tip p0 p1)         = drawTip p0 p1
-
-Draw a section of trunk or branch as a trapezoid with the
-correct girths at each end.
-
-> drawTrunk :: P2 -> P2 -> Double -> Double -> Diagram B R2
-> drawTrunk p0 p1 g0 g1 = place trunk p0
->     where trunk = (closeLine . lineFromVertices) [ p0, a, b, c, d ]
->                   # strokeLoop 
->                   # fc black 
->                   # lw 0.01 
->           n = (p1 .-. p0) # rotateBy (1/4) # normalized
->           g0_2 = g0 / 2
->           g1_2 = g1 / 2
->           a = p0 .-^ (g0_2 *^ n)
->           b = p1 .-^ (g1_2 *^ n)
->           c = p1 .+^ (g1_2 *^ n)
->           d = p0 .+^ (g0_2 *^ n)
-
-> drawTip :: P2 -> P2 -> Diagram B R2 
-> drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
-
-**Rendering a Tree from Parameters**
-
-> renderTree :: TreeParams -> Diagram B R2
-> renderTree = draw . toPrim . mkAboveGround . projectXZ . toAbsolute . tree

@@ -12,7 +12,7 @@ This program draws the conifer with the specified values.
 Run the program with `dist/build/individual/individual -o individual.svg -w 400` 
 where `-o` sets the output filename, and `-w` sets the diagram width.
 
-> main   = defaultMain (renderTree tp # centerXY # pad 1.2)
+> main   = defaultMain (tree tp # renderTree # centerXY # pad 1.2)
 
 > tp = def {
 >       tpAge                         = 3

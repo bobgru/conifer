@@ -57,7 +57,7 @@ An arrangement specialized for all our samples, which are 3 _x_ 3.
 
 Draw a tree with the given parameters but overridden with the specified age.
 
-> treeAtAge tp a = renderTree (tp { tpAge = a })
+> treeAtAge tp a = tree (tp { tpAge = a }) # renderTree
 
 **Comparisons**
 
