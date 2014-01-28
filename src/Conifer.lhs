@@ -42,9 +42,9 @@ with a polymorphic payload in each.
 
 The payload of a leaf or node is a `TreeInfo` parameterized on location
 type, and containing the location, the girth at its origin (the location of
-which is implicit), and the girth at its location.
+which is implicit), the girth at its location, and its age.
 
-> type TreeInfo a = (a, Double, Double)
+> type TreeInfo a = (a, Double, Double, Double)
 
 We specialize the types for the three phases of tree development.
 The tree grows as type `RTree3` (3D tree with relative coordinates), 
@@ -62,8 +62,8 @@ which when carried out produce diagrams.
    with girth _g0_ at _p0_ and _g1_ at _p1_.
 * `Tip` is the tip of a tree or branch, between points _p0_ and _p1_.
 
-> data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double }
->               | Tip   { p0::P2, p1::P2 }
+> data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
+>               | Tip   { p0::P2, p1::P2, age::Double }
 
 **Tree Combinators**
 
@@ -106,10 +106,10 @@ Convert the tree of relative coordinate spaces into a single coherent absolute
 coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 
 > toAbsolute :: RTree3 -> ATree3
-> toAbsolute = treeFold infoR3ToP3 (origin, 0, 0)
+> toAbsolute = treeFold infoR3ToP3 (origin, 0, 0, 0)
 
 > infoR3ToP3 :: TreeInfo P3 -> TreeInfo R3 -> TreeInfo P3
-> infoR3ToP3 (p, _, _) (v, g0, g1) = (p .+^ v, g0, g1)
+> infoR3ToP3 (p, _, _, _) (v, g0, g1, a) = (p .+^ v, g0, g1, a)
 
 **Respecting the Earth**
 
@@ -120,7 +120,7 @@ digging into it.
 > mkAboveGround = fmap infoAboveGround
 
 > infoAboveGround :: TreeInfo P3 -> TreeInfo P3
-> infoAboveGround (n, g0, g1) = (aboveGround n, g0, g1)
+> infoAboveGround (n, g0, g1, a) = (aboveGround n, g0, g1, a)
 
 > aboveGround :: P3 -> P3
 > aboveGround p = p3 (x, y, max 0 z) where (x, y, z) = unp3 p
@@ -134,7 +134,7 @@ We could project onto another plane and the rest of the pipeline would work.
 > projectXZ = fmap infoXZ
 
 > infoXZ :: TreeInfo P3 -> TreeInfo P2
-> infoXZ (n, g0, g1) = (xz n, g0, g1)
+> infoXZ (n, g0, g1, a) = (xz n, g0, g1, a)
 
 > xz :: P3 -> P2
 > xz p = p2 (x, z) where (x, _, z) = unp3 p
@@ -145,12 +145,12 @@ Given a tree projected onto a plane, convert it to a list
 of drawing instructions.
 
 > toPrim :: ATree2 -> [TreePrim]
-> toPrim = flattenTree treeToPrim (origin, 0, 0)
+> toPrim = flattenTree treeToPrim (origin, 0, 0, 0)
 
 > treeToPrim :: TreeInfo P2 -> TreeInfo P2 -> [TreePrim]
-> treeToPrim (n0, _, _) (n, g0, g1) = [if g0 < 0 then tip else node]
->     where tip  = Tip n0 n
->           node = Trunk n0 n g0 g1
+> treeToPrim (n0, _, _, _) (n, g0, g1, a) = [if g0 < 0 then tip else node]
+>     where tip  = Tip n0 n a
+>           node = Trunk n0 n g0 g1 a
 
 **Drawing the Primitives**
 
@@ -161,14 +161,14 @@ the diagrams package, producing a diagram as output.
 > draw = mconcat . map drawPrim
 
 > drawPrim :: TreePrim -> Diagram B R2
-> drawPrim (Trunk p0 p1 g0 g1) = drawTrunk p0 p1 g0 g1
-> drawPrim (Tip p0 p1)         = drawTip p0 p1
+> drawPrim (Trunk p0 p1 g0 g1 a) = drawTrunk p0 p1 g0 g1 a
+> drawPrim (Tip p0 p1 a)         = drawTip p0 p1 a
 
 Draw a section of trunk or branch as a trapezoid with the
 correct girths at each end.
 
-> drawTrunk :: P2 -> P2 -> Double -> Double -> Diagram B R2
-> drawTrunk p0 p1 g0 g1 = place trunk p0
+> drawTrunk :: P2 -> P2 -> Double -> Double -> Double -> Diagram B R2
+> drawTrunk p0 p1 g0 g1 age = place trunk p0
 >     where trunk = (closeLine . lineFromVertices) [ p0, a, b, c, d ]
 >                   # strokeLoop 
 >                   # fc black 
@@ -181,8 +181,8 @@ correct girths at each end.
 >           c = p1 .+^ (g1_2 *^ n)
 >           d = p0 .+^ (g0_2 *^ n)
 
-> drawTip :: P2 -> P2 -> Diagram B R2 
-> drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
+> drawTip :: P2 -> P2 -> Double -> Diagram B R2 
+> drawTip p0 p1 age = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
 
 **Specifying a Conifer**
 
@@ -250,8 +250,8 @@ parent node, which is the natural way to use the diagrams package.
 
 > tree :: TreeParams -> RTree3
 > tree tp = if age < ageIncr
->               then Leaf (node, -1, -1)
->               else Node (node, girth0, girth1) nodes
+>               then Leaf (node, -1, -1, 0)
+>               else Node (node, girth0, girth1, age) nodes
 >     where age     = tpAge tp
 >           g       = tpTrunkGirth tp
 >           girth0  = girth age g
@@ -284,8 +284,8 @@ going left, center, and right.
 
 > branch :: TreeParams -> R3 -> RTree3
 > branch tp node = if age < 1
->                      then Leaf (leafNode, -1, -1)
->                      else Node (node, girth0, girth0) nodes
+>                      then Leaf (leafNode, -1, -1, 0)
+>                      else Node (node, girth0, girth0, age) nodes
 >     where age    = tpAge tp
 >           g      = tpBranchGirth tp
 >           girth0 = girth (age - 1) g
@@ -317,11 +317,6 @@ branches to their full length. If they are leaves, they will be scaled back, as 
 >           bblr2  = tpBranchBranchLengthRatio2 tp
 
 Helper functions for building the tree:
-
-> rotateXY :: Rad -> R3 -> R3
-> rotateXY a v = r3 (x', y', z)
->     where (x, y, z) = unr3 v
->           (x', y')  = unr2 (rotate a (r2 (x, y)))
 
 > subYear :: TreeParams -> TreeParams
 > subYear = adjustAge (-1)
