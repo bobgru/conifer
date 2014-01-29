@@ -99,14 +99,17 @@ in the process.
 
 Given a tree, grown by any policy, convert it to a diagram. The pipeline
 of functions converts the original `RTree3`—most convenient during construction—to `ATree3`
-then to `ATree2`, which are convenient for further processing.
+then to `ATree2`, then to `[TreePrim]` which are convenient for further processing. The option
+of drawing with or without needles is exposed as different pipelines.
 
 > renderTree :: RTree3 -> Diagram B R2
-> renderTree = draw . toPrim . projectXZ . mkAboveGround . toAbsolute
+> renderTree = draw . renderTreeToPrim
 
 > renderTreeWithNeedles :: (Double -> Bool) -> NeedleParams -> RTree3 -> Diagram B R2
-> renderTreeWithNeedles f np =
->     draw' np . withNeedles f . toPrim . projectXZ . mkAboveGround . toAbsolute
+> renderTreeWithNeedles f np = draw' np . withNeedles f . renderTreeToPrim
+
+> renderTreeToPrim :: RTree3 -> [TreePrim]
+> renderTreeToPrim = toPrim . projectXZ . mkAboveGround . toAbsolute
 
 **Converting from Relative to Absolute Coordinates**
 
