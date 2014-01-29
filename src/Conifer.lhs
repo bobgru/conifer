@@ -16,7 +16,7 @@ a conifer.
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > module Conifer ( Tree
->                , renderTree
+>                , renderTree, renderTreeWithNeedles
 >                , TreeParams(..)
 >                , TreeInfo, RTree3
 >                , tree
@@ -63,9 +63,11 @@ which when carried out produce diagrams.
 * `Trunk` is a section of trunk or branch between points _p0_ and _p1_, 
    with girth _g0_ at _p0_ and _g1_ at _p1_.
 * `Tip` is the tip of a tree or branch, between points _p0_ and _p1_.
+* `Needles` indicates decoration with needles between points _p0_ and _p1_.
 
-> data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
->               | Tip   { p0::P2, p1::P2, age::Double }
+> data TreePrim = Trunk   { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
+>               | Tip     { p0::P2, p1::P2, age::Double }
+>               | Needles { p0::P2, p1::P2 }
 
 **Tree Combinators**
 
@@ -101,6 +103,9 @@ then to `ATree2`, which are convenient for further processing.
 
 > renderTree :: RTree3 -> Diagram B R2
 > renderTree = draw . toPrim . projectXZ . mkAboveGround . toAbsolute
+
+> renderTreeWithNeedles :: (Double -> Bool) -> RTree3 -> Diagram B R2
+> renderTreeWithNeedles f = draw . withNeedles f . toPrim . projectXZ . mkAboveGround . toAbsolute
 
 **Converting from Relative to Absolute Coordinates**
 
@@ -154,6 +159,25 @@ of drawing instructions.
 >     where tip  = Tip n0 n a
 >           node = Trunk n0 n g0 g1 a
 
+**Decorating with Needles**
+
+After the tree has been converted to primitives, scan them for where to decorate
+with needles, according to the predicate supplied by the consumer. Append the
+needle-drawing instructions as new primitives.
+
+> withNeedles :: (Double -> Bool) -> [TreePrim] -> [TreePrim]
+> withNeedles f ps = ps ++ (map toNeedles . filter (shouldAddNeedles f)) ps
+
+> shouldAddNeedles :: (Double -> Bool) -> TreePrim -> Bool
+> shouldAddNeedles f (Trunk _ _ _ _ a) = f a
+> shouldAddNeedles f (Tip   _ _     a) = f a
+> shouldAddNeedles _ _                 = False
+
+> toNeedles :: TreePrim -> TreePrim
+> toNeedles (Trunk p0 p1 _ _ _) = Needles p0 p1
+> toNeedles (Tip   p0 p1     _) = Needles p0 p1
+> toNeedles p                   = p
+
 **Drawing the Primitives**
 
 Execute the drawing instructions as applications of functions from
@@ -163,13 +187,9 @@ the diagrams package, producing a diagram as output.
 > draw = mconcat . map drawPrim
 
 > drawPrim :: TreePrim -> Diagram B R2
-> drawPrim (Trunk p0 p1 g0 g1 a) = drawTrunk p0 p1 g0 g1 a # withNeedles p0 p1 a
-> drawPrim (Tip p0 p1 a)         = drawTip   p0 p1       a # withNeedles p0 p1 a
-
-> withNeedles :: P2 -> P2 -> Double -> Diagram B R2 -> Diagram B R2
-> withNeedles p0 p1 age = if addNeedles && needlePolicy age
->                             then (drawNeedles p0 p1 <>)
->                             else id
+> drawPrim (Trunk p0 p1 g0 g1 a) = drawTrunk   p0 p1 g0 g1 a
+> drawPrim (Tip p0 p1 a)         = drawTip     p0 p1       a
+> drawPrim (Needles p0 p1)       = drawNeedles p0 p1
 
 Draw a section of trunk or branch as a trapezoid with the
 correct girths at each end.
@@ -203,12 +223,12 @@ correct girths at each end.
 
 > needle :: Double -> Rad -> Diagram B R2
 > needle l th =  d # rotate th <> d # rotate (-th)
->   where d = fromOffsets [Diagrams.Prelude.unitX ^* l]
+>     where d = fromOffsets [Diagrams.Prelude.unitX ^* l]
+
 > needles :: Int -> Double -> Double -> Rad -> Diagram B R2
 > needles n l nl na = position (zip ps (repeat (needle nl na)))
->   where ps = map p2 [(x,0)|x <- [0, dx .. l - dx]]
->         dx = l / fromIntegral (n + 1)
-
+>     where ps = map p2 [(x,0)|x <- [0, dx .. l - dx]]
+>           dx = l / fromIntegral (n + 1)
 
 **Specifying a Conifer**
 
@@ -254,13 +274,6 @@ the regular growth.
 >     , tpBranchBranchLengthRatio2    = 0.8
 >     , tpBranchBranchAngle           = tau / 6
 >     }
-
-Needles are optional, according to the following global settings. The idea of
-global settings needs to be addressed so these choices can be made without
-recompiling the library. (**TODO**)
-
-> addNeedles   = True
-> needlePolicy = (<= 2.0)
 
 **Growing a Conifer**
 
