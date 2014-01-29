@@ -29,6 +29,8 @@ a conifer.
 > import Diagrams.ThreeD.Types
 > import Diagrams.ThreeD.Transform
 > import Diagrams.ThreeD.Vector
+> import Diagrams.TwoD.Transform.ScaleInv
+> import Diagrams.TwoD.Vector (angleBetween)
 > import Data.Default.Class
 > import Data.Cross
 
@@ -161,8 +163,13 @@ the diagrams package, producing a diagram as output.
 > draw = mconcat . map drawPrim
 
 > drawPrim :: TreePrim -> Diagram B R2
-> drawPrim (Trunk p0 p1 g0 g1 a) = drawTrunk p0 p1 g0 g1 a
-> drawPrim (Tip p0 p1 a)         = drawTip p0 p1 a
+> drawPrim (Trunk p0 p1 g0 g1 a) = drawTrunk p0 p1 g0 g1 a # withNeedles p0 p1 a
+> drawPrim (Tip p0 p1 a)         = drawTip   p0 p1       a # withNeedles p0 p1 a
+
+> withNeedles :: P2 -> P2 -> Double -> Diagram B R2 -> Diagram B R2
+> withNeedles p0 p1 age = if addNeedles && needlePolicy age
+>                             then (drawNeedles p0 p1 <>)
+>                             else id
 
 Draw a section of trunk or branch as a trapezoid with the
 correct girths at each end.
@@ -183,6 +190,25 @@ correct girths at each end.
 
 > drawTip :: P2 -> P2 -> Double -> Diagram B R2 
 > drawTip p0 p1 age = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
+
+> drawNeedles :: P2 -> P2 -> Diagram B R2
+> drawNeedles p0 p1 = place ((scaleInv ns Diagrams.Prelude.unitX) # _scaleInvObj) p0
+>     where ns = needles numNeedles (magnitude v) needleLength needleAngle # rotate (-th)
+>           th = (Diagrams.TwoD.Vector.angleBetween v Diagrams.Prelude.unitX) :: Rad
+>           v  = p1 .-. p0
+>           numNeedles   = floor ((magnitude v) / needleIncr) :: Int
+>           needleLength = 0.05
+>           needleAngle  = tau / 10 :: Rad
+>           needleIncr   = 0.05
+
+> needle :: Double -> Rad -> Diagram B R2
+> needle l th =  d # rotate th <> d # rotate (-th)
+>   where d = fromOffsets [Diagrams.Prelude.unitX ^* l]
+> needles :: Int -> Double -> Double -> Rad -> Diagram B R2
+> needles n l nl na = position (zip ps (repeat (needle nl na)))
+>   where ps = map p2 [(x,0)|x <- [0, dx .. l - dx]]
+>         dx = l / fromIntegral (n + 1)
+
 
 **Specifying a Conifer**
 
@@ -228,6 +254,13 @@ the regular growth.
 >     , tpBranchBranchLengthRatio2    = 0.8
 >     , tpBranchBranchAngle           = tau / 6
 >     }
+
+Needles are optional, according to the following global settings. The idea of
+global settings needs to be addressed so these choices can be made without
+recompiling the library. (**TODO**)
+
+> addNeedles   = True
+> needlePolicy = (<= 2.0)
 
 **Growing a Conifer**
 
@@ -310,7 +343,7 @@ branches to their full length. If they are leaves, they will be scaled back, as 
 >           t1     = rotationAbout origin nAxis angle
 >           zAxis  = (asSpherical . direction) unitZ
 >           nAxis  = (asSpherical . direction) (cross3 unitZ node)
->           angle  = 1/4 - ((asTurn . angleBetween unitZ) node)
+>           angle  = 1/4 - ((asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node)
 
 >           bba    = tpBranchBranchAngle tp
 >           bblr   = tpBranchBranchLengthRatio tp
