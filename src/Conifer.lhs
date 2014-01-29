@@ -17,7 +17,7 @@ a conifer.
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > module Conifer ( Tree
 >                , renderTree, renderTreeWithNeedles
->                , TreeParams(..)
+>                , TreeParams(..), NeedleParams(..)
 >                , TreeInfo, RTree3
 >                , tree
 >                )
@@ -104,8 +104,9 @@ then to `ATree2`, which are convenient for further processing.
 > renderTree :: RTree3 -> Diagram B R2
 > renderTree = draw . toPrim . projectXZ . mkAboveGround . toAbsolute
 
-> renderTreeWithNeedles :: (Double -> Bool) -> RTree3 -> Diagram B R2
-> renderTreeWithNeedles f = draw . withNeedles f . toPrim . projectXZ . mkAboveGround . toAbsolute
+> renderTreeWithNeedles :: (Double -> Bool) -> NeedleParams -> RTree3 -> Diagram B R2
+> renderTreeWithNeedles f np =
+>     draw' np . withNeedles f . toPrim . projectXZ . mkAboveGround . toAbsolute
 
 **Converting from Relative to Absolute Coordinates**
 
@@ -184,12 +185,15 @@ Execute the drawing instructions as applications of functions from
 the diagrams package, producing a diagram as output.
 
 > draw :: [TreePrim] -> Diagram B R2
-> draw = mconcat . map drawPrim
+> draw = draw' def
 
-> drawPrim :: TreePrim -> Diagram B R2
-> drawPrim (Trunk p0 p1 g0 g1 a) = drawTrunk   p0 p1 g0 g1 a
-> drawPrim (Tip p0 p1 a)         = drawTip     p0 p1       a
-> drawPrim (Needles p0 p1)       = drawNeedles p0 p1
+> draw' :: NeedleParams -> [TreePrim] -> Diagram B R2
+> draw' np = mconcat . map (drawPrim np)
+
+> drawPrim :: NeedleParams -> TreePrim -> Diagram B R2
+> drawPrim _  (Trunk p0 p1 g0 g1 a) = drawTrunk   p0 p1 g0 g1 a
+> drawPrim _  (Tip p0 p1 a)         = drawTip     p0 p1       a
+> drawPrim np (Needles p0 p1)       = drawNeedles p0 p1 np
 
 Draw a section of trunk or branch as a trapezoid with the
 correct girths at each end.
@@ -211,15 +215,15 @@ correct girths at each end.
 > drawTip :: P2 -> P2 -> Double -> Diagram B R2 
 > drawTip p0 p1 age = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
 
-> drawNeedles :: P2 -> P2 -> Diagram B R2
-> drawNeedles p0 p1 = place ((scaleInv ns Diagrams.Prelude.unitX) # _scaleInvObj) p0
->     where ns = needles numNeedles (magnitude v) needleLength needleAngle # rotate (-th)
+> drawNeedles :: P2 -> P2 -> NeedleParams -> Diagram B R2
+> drawNeedles p0 p1 np = place ((scaleInv ns Diagrams.Prelude.unitX) # _scaleInvObj) p0
+>     where ns = needles numNeedles (magnitude v) nLength nAngle # rotate (-th)
 >           th = (Diagrams.TwoD.Vector.angleBetween v Diagrams.Prelude.unitX) :: Rad
 >           v  = p1 .-. p0
->           numNeedles   = floor ((magnitude v) / needleIncr) :: Int
->           needleLength = 0.05
->           needleAngle  = tau / 10 :: Rad
->           needleIncr   = 0.05
+>           numNeedles   = floor ((magnitude v) / nIncr) :: Int
+>           nLength = needleLength np
+>           nAngle  = needleAngle np
+>           nIncr   = needleIncr np
 
 > needle :: Double -> Rad -> Diagram B R2
 > needle l th =  d # rotate th <> d # rotate (-th)
@@ -273,6 +277,22 @@ the regular growth.
 >     , tpBranchBranchLengthRatio     = 0.8
 >     , tpBranchBranchLengthRatio2    = 0.8
 >     , tpBranchBranchAngle           = tau / 6
+>     }
+
+The tree can be optionally decorated with needles, in which case the
+needles can be customized in various ways.
+
+> data NeedleParams = NeedleParams {
+>       needleLength :: Double
+>     , needleAngle  :: Rad
+>     , needleIncr   :: Double
+>     }
+
+> instance Default NeedleParams where
+>     def = NeedleParams {
+>       needleLength = 0.05
+>     , needleAngle  = tau / 10
+>     , needleIncr   = 0.05
 >     }
 
 **Growing a Conifer**
