@@ -16,8 +16,8 @@ a conifer.
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > module Conifer ( Tree
->                , renderTree
->                , TreeParams(..)
+>                , renderTree, renderTreeWithNeedles
+>                , TreeParams(..), NeedleParams(..)
 >                , TreeInfo, RTree3
 >                , tree
 >                )
@@ -29,6 +29,8 @@ a conifer.
 > import Diagrams.ThreeD.Types
 > import Diagrams.ThreeD.Transform
 > import Diagrams.ThreeD.Vector
+> import Diagrams.TwoD.Transform.ScaleInv
+> import Diagrams.TwoD.Vector (angleBetween)
 > import Data.Default.Class
 > import Data.Cross
 
@@ -42,9 +44,9 @@ with a polymorphic payload in each.
 
 The payload of a leaf or node is a `TreeInfo` parameterized on location
 type, and containing the location, the girth at its origin (the location of
-which is implicit), and the girth at its location.
+which is implicit), the girth at its location, and its age.
 
-> type TreeInfo a = (a, Double, Double)
+> type TreeInfo a = (a, Double, Double, Double)
 
 We specialize the types for the three phases of tree development.
 The tree grows as type `RTree3` (3D tree with relative coordinates), 
@@ -61,9 +63,11 @@ which when carried out produce diagrams.
 * `Trunk` is a section of trunk or branch between points _p0_ and _p1_, 
    with girth _g0_ at _p0_ and _g1_ at _p1_.
 * `Tip` is the tip of a tree or branch, between points _p0_ and _p1_.
+* `Needles` indicates decoration with needles between points _p0_ and _p1_.
 
-> data TreePrim = Trunk { p0::P2, p1::P2, g0::Double, g1::Double }
->               | Tip   { p0::P2, p1::P2 }
+> data TreePrim = Trunk   { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
+>               | Tip     { p0::P2, p1::P2, age::Double }
+>               | Needles { p0::P2, p1::P2 }
 
 **Tree Combinators**
 
@@ -95,10 +99,17 @@ in the process.
 
 Given a tree, grown by any policy, convert it to a diagram. The pipeline
 of functions converts the original `RTree3`—most convenient during construction—to `ATree3`
-then to `ATree2`, which are convenient for further processing.
+then to `ATree2`, then to `[TreePrim]` which are convenient for further processing. The option
+of drawing with or without needles is exposed as different pipelines.
 
 > renderTree :: RTree3 -> Diagram B R2
-> renderTree = draw . toPrim . projectXZ . mkAboveGround . toAbsolute
+> renderTree = draw . renderTreeToPrim
+
+> renderTreeWithNeedles :: (Double -> Bool) -> NeedleParams -> RTree3 -> Diagram B R2
+> renderTreeWithNeedles f np = draw' np . withNeedles f . renderTreeToPrim
+
+> renderTreeToPrim :: RTree3 -> [TreePrim]
+> renderTreeToPrim = toPrim . projectXZ . mkAboveGround . toAbsolute
 
 **Converting from Relative to Absolute Coordinates**
 
@@ -106,10 +117,10 @@ Convert the tree of relative coordinate spaces into a single coherent absolute
 coordinate space, which will make projection onto the _x_-_z_-plane trivial.
 
 > toAbsolute :: RTree3 -> ATree3
-> toAbsolute = treeFold infoR3ToP3 (origin, 0, 0)
+> toAbsolute = treeFold infoR3ToP3 (origin, 0, 0, 0)
 
 > infoR3ToP3 :: TreeInfo P3 -> TreeInfo R3 -> TreeInfo P3
-> infoR3ToP3 (p, _, _) (v, g0, g1) = (p .+^ v, g0, g1)
+> infoR3ToP3 (p, _, _, _) (v, g0, g1, a) = (p .+^ v, g0, g1, a)
 
 **Respecting the Earth**
 
@@ -120,7 +131,7 @@ digging into it.
 > mkAboveGround = fmap infoAboveGround
 
 > infoAboveGround :: TreeInfo P3 -> TreeInfo P3
-> infoAboveGround (n, g0, g1) = (aboveGround n, g0, g1)
+> infoAboveGround (n, g0, g1, a) = (aboveGround n, g0, g1, a)
 
 > aboveGround :: P3 -> P3
 > aboveGround p = p3 (x, y, max 0 z) where (x, y, z) = unp3 p
@@ -134,7 +145,7 @@ We could project onto another plane and the rest of the pipeline would work.
 > projectXZ = fmap infoXZ
 
 > infoXZ :: TreeInfo P3 -> TreeInfo P2
-> infoXZ (n, g0, g1) = (xz n, g0, g1)
+> infoXZ (n, g0, g1, a) = (xz n, g0, g1, a)
 
 > xz :: P3 -> P2
 > xz p = p2 (x, z) where (x, _, z) = unp3 p
@@ -145,12 +156,31 @@ Given a tree projected onto a plane, convert it to a list
 of drawing instructions.
 
 > toPrim :: ATree2 -> [TreePrim]
-> toPrim = flattenTree treeToPrim (origin, 0, 0)
+> toPrim = flattenTree treeToPrim (origin, 0, 0, 0)
 
 > treeToPrim :: TreeInfo P2 -> TreeInfo P2 -> [TreePrim]
-> treeToPrim (n0, _, _) (n, g0, g1) = [if g0 < 0 then tip else node]
->     where tip  = Tip n0 n
->           node = Trunk n0 n g0 g1
+> treeToPrim (n0, _, _, _) (n, g0, g1, a) = [if g0 < 0 then tip else node]
+>     where tip  = Tip n0 n a
+>           node = Trunk n0 n g0 g1 a
+
+**Decorating with Needles**
+
+After the tree has been converted to primitives, scan them for where to decorate
+with needles, according to the predicate supplied by the consumer. Append the
+needle-drawing instructions as new primitives.
+
+> withNeedles :: (Double -> Bool) -> [TreePrim] -> [TreePrim]
+> withNeedles f ps = ps ++ (map toNeedles . filter (shouldAddNeedles f)) ps
+
+> shouldAddNeedles :: (Double -> Bool) -> TreePrim -> Bool
+> shouldAddNeedles f (Trunk _ _ _ _ a) = f a
+> shouldAddNeedles f (Tip   _ _     a) = f a
+> shouldAddNeedles _ _                 = False
+
+> toNeedles :: TreePrim -> TreePrim
+> toNeedles (Trunk p0 p1 _ _ _) = Needles p0 p1
+> toNeedles (Tip   p0 p1     _) = Needles p0 p1
+> toNeedles p                   = p
 
 **Drawing the Primitives**
 
@@ -158,11 +188,15 @@ Execute the drawing instructions as applications of functions from
 the diagrams package, producing a diagram as output.
 
 > draw :: [TreePrim] -> Diagram B R2
-> draw = mconcat . map drawPrim
+> draw = draw' def
 
-> drawPrim :: TreePrim -> Diagram B R2
-> drawPrim (Trunk p0 p1 g0 g1) = drawTrunk p0 p1 g0 g1
-> drawPrim (Tip p0 p1)         = drawTip p0 p1
+> draw' :: NeedleParams -> [TreePrim] -> Diagram B R2
+> draw' np = mconcat . map (drawPrim np)
+
+> drawPrim :: NeedleParams -> TreePrim -> Diagram B R2
+> drawPrim _  (Trunk p0 p1 g0 g1 _) = drawTrunk   p0 p1 g0 g1
+> drawPrim _  (Tip p0 p1 _)         = drawTip     p0 p1
+> drawPrim np (Needles p0 p1)       = drawNeedles p0 p1 np
 
 Draw a section of trunk or branch as a trapezoid with the
 correct girths at each end.
@@ -183,6 +217,25 @@ correct girths at each end.
 
 > drawTip :: P2 -> P2 -> Diagram B R2 
 > drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
+
+> drawNeedles :: P2 -> P2 -> NeedleParams -> Diagram B R2
+> drawNeedles p0 p1 np = place ((scaleInv ns Diagrams.Prelude.unitX) # _scaleInvObj) p0
+>     where ns = needles numNeedles (magnitude v) nLength nAngle # rotate (-th)
+>           th = (Diagrams.TwoD.Vector.angleBetween v Diagrams.Prelude.unitX) :: Rad
+>           v  = p1 .-. p0
+>           numNeedles   = floor ((magnitude v) / nIncr) :: Int
+>           nLength = needleLength np
+>           nAngle  = needleAngle np
+>           nIncr   = needleIncr np
+
+> needle :: Double -> Rad -> Diagram B R2
+> needle l th =  d # rotate th <> d # rotate (-th)
+>     where d = fromOffsets [Diagrams.Prelude.unitX ^* l]
+
+> needles :: Int -> Double -> Double -> Rad -> Diagram B R2
+> needles n l nl na = position (zip ps (repeat (needle nl na)))
+>     where ps = map p2 [(x,0)|x <- [0, dx .. l - dx]]
+>           dx = l / fromIntegral (n + 1)
 
 **Specifying a Conifer**
 
@@ -229,6 +282,22 @@ the regular growth.
 >     , tpBranchBranchAngle           = tau / 6
 >     }
 
+The tree can be optionally decorated with needles, in which case the
+needles can be customized in various ways.
+
+> data NeedleParams = NeedleParams {
+>       needleLength :: Double
+>     , needleAngle  :: Rad
+>     , needleIncr   :: Double
+>     }
+
+> instance Default NeedleParams where
+>     def = NeedleParams {
+>       needleLength = 0.05
+>     , needleAngle  = tau / 10
+>     , needleIncr   = 0.05
+>     }
+
 **Growing a Conifer**
 
 Our tree rises from its origin to a node where there is another tree, and
@@ -250,8 +319,8 @@ parent node, which is the natural way to use the diagrams package.
 
 > tree :: TreeParams -> RTree3
 > tree tp = if age < ageIncr
->               then Leaf (node, -1, -1)
->               else Node (node, girth0, girth1) nodes
+>               then Leaf (node, -1, -1, 0)
+>               else Node (node, girth0, girth1, age) nodes
 >     where age     = tpAge tp
 >           g       = tpTrunkGirth tp
 >           girth0  = girth age g
@@ -284,8 +353,8 @@ going left, center, and right.
 
 > branch :: TreeParams -> R3 -> RTree3
 > branch tp node = if age < 1
->                      then Leaf (leafNode, -1, -1)
->                      else Node (node, girth0, girth0) nodes
+>                      then Leaf (leafNode, -1, -1, 0)
+>                      else Node (node, girth0, girth0, age) nodes
 >     where age    = tpAge tp
 >           g      = tpBranchGirth tp
 >           girth0 = girth (age - 1) g
@@ -310,18 +379,13 @@ branches to their full length. If they are leaves, they will be scaled back, as 
 >           t1     = rotationAbout origin nAxis angle
 >           zAxis  = (asSpherical . direction) unitZ
 >           nAxis  = (asSpherical . direction) (cross3 unitZ node)
->           angle  = 1/4 - ((asTurn . angleBetween unitZ) node)
+>           angle  = 1/4 - ((asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node)
 
 >           bba    = tpBranchBranchAngle tp
 >           bblr   = tpBranchBranchLengthRatio tp
 >           bblr2  = tpBranchBranchLengthRatio2 tp
 
 Helper functions for building the tree:
-
-> rotateXY :: Rad -> R3 -> R3
-> rotateXY a v = r3 (x', y', z)
->     where (x, y, z) = unr3 v
->           (x', y')  = unr2 (rotate a (r2 (x, y)))
 
 > subYear :: TreeParams -> TreeParams
 > subYear = adjustAge (-1)

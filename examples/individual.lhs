@@ -12,8 +12,28 @@ This program draws the conifer with the specified values.
 Run the program with `dist/build/individual/individual -o individual.svg -w 400` 
 where `-o` sets the output filename, and `-w` sets the diagram width.
 
-> main   = defaultMain (tree tp # renderTree # centerXY # pad 1.2)
+> main   = defaultMain (tree tp # render' # centerXY # pad 1.2)
 
+> render' = if withNeedles 
+>               then renderTreeWithNeedles needlePolicy np
+>               else renderTree
+
+Change `withNeedles` to `False` to draw the tree without needles.
+
+> withNeedles = True
+
+> needlePolicy :: Double -> Bool
+> needlePolicy age = age <= 2.0
+
+> np :: NeedleParams
+> np = def {
+>       needleLength = 0.05
+>     , needleAngle  = tau / 10
+>     , needleIncr   = 0.05
+>     }
+
+
+> tp :: TreeParams
 > tp = def {
 >       tpAge                         = 3
 >     , tpTrunkLengthIncrementPerYear = 1.4
