@@ -31,17 +31,17 @@ There is also an example (under development) to draw a legend to describe
 the meaning of the parameters. To show what I'm looking for, I include a hand-drawn
 legend below, inspired by an image from _The Self-Made Tapestry_ by Philip Ball.
 
-Sadly, the trees appear dead, because I have yet to figure out how to use
-scale-invariance to put needles on the twigs. Even so, they served my purpose
-of generating images for a homemade Christmas card, below.
-
 A comparison of nine different trees:
 
-![Comparison](https://github.com/bobgru/conifer/blob/master/images/card-comparison.png?raw=true "Comparison")
+![Comparison](https://github.com/bobgru/conifer/blob/master/images/comparison-needles.png?raw=true "Comparison")
 
-A larger rendering of the tree from the lower left corner above:
+An individual tree, without needles:
 
-![Individual](https://github.com/bobgru/conifer/blob/master/images/card-individual.png?raw=true "Individual")
+![Individual without needles](https://github.com/bobgru/conifer/blob/master/images/individual-no-needles.png?raw=true "Individual without needles")
+
+The same tree with needles:
+
+![Individual with needles](https://github.com/bobgru/conifer/blob/master/images/individual-needles.png?raw=true "Individual with needles")
 
 A hand-drawn legend describing six of the parameters:
 
