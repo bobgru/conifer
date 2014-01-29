@@ -194,15 +194,15 @@ the diagrams package, producing a diagram as output.
 > draw' np = mconcat . map (drawPrim np)
 
 > drawPrim :: NeedleParams -> TreePrim -> Diagram B R2
-> drawPrim _  (Trunk p0 p1 g0 g1 a) = drawTrunk   p0 p1 g0 g1 a
-> drawPrim _  (Tip p0 p1 a)         = drawTip     p0 p1       a
+> drawPrim _  (Trunk p0 p1 g0 g1 _) = drawTrunk   p0 p1 g0 g1
+> drawPrim _  (Tip p0 p1 _)         = drawTip     p0 p1
 > drawPrim np (Needles p0 p1)       = drawNeedles p0 p1 np
 
 Draw a section of trunk or branch as a trapezoid with the
 correct girths at each end.
 
-> drawTrunk :: P2 -> P2 -> Double -> Double -> Double -> Diagram B R2
-> drawTrunk p0 p1 g0 g1 age = place trunk p0
+> drawTrunk :: P2 -> P2 -> Double -> Double -> Diagram B R2
+> drawTrunk p0 p1 g0 g1 = place trunk p0
 >     where trunk = (closeLine . lineFromVertices) [ p0, a, b, c, d ]
 >                   # strokeLoop 
 >                   # fc black 
@@ -215,8 +215,8 @@ correct girths at each end.
 >           c = p1 .+^ (g1_2 *^ n)
 >           d = p0 .+^ (g0_2 *^ n)
 
-> drawTip :: P2 -> P2 -> Double -> Diagram B R2 
-> drawTip p0 p1 age = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
+> drawTip :: P2 -> P2 -> Diagram B R2 
+> drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
 
 > drawNeedles :: P2 -> P2 -> NeedleParams -> Diagram B R2
 > drawNeedles p0 p1 np = place ((scaleInv ns Diagrams.Prelude.unitX) # _scaleInvObj) p0
