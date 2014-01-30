@@ -1,0 +1,74 @@
+A Legend for the Virtual Conifer
+================================
+
+This program draws a diagram explaining some of the tree
+parameters for the virtual conifer.
+
+> {-# LANGUAGE NoMonomorphismRestriction #-}
+> import Diagrams.Prelude
+> import Diagrams.Backend.SVG.CmdLine
+> import Diagrams.ThreeD.Types
+> import Diagrams.ThreeD.Transform as T3D
+> import Diagrams.ThreeD.Vector as T3V
+> import Data.Default.Class
+
+Run the program with `dist/build/one-conifer/legend -o legend.svg -w 400` 
+where `-o` sets the output filename, and `-w` sets the diagram width.
+
+> main = defaultMain (legend theta phi # centerXY # pad 1.2)
+
+> legend :: Rad -> Rad -> Diagram B R2
+> legend theta phi = (draw . flatten . spin theta phi) parts
+
+> parts :: [[P3]]
+> parts = [ branchRect, vertRect, horizRect ]
+
+> baseWidth       = 1.5
+> baseLength      = 3.5
+> trunkHeight     = 2
+> branchTipHeight = trunkHeight / 2
+> theta           = pi * (9.1/10) :: Rad
+> phi             = pi * (2.2/5) :: Rad
+
+> horizRect :: [P3]
+> horizRect = [ p3 (          0, -baseWidth/2, 0)
+>             , p3 ( baseLength, -baseWidth/2, 0)
+>             , p3 ( baseLength,  baseWidth/2, 0)
+>             , p3 (          0,  baseWidth/2, 0)
+>             ] 
+
+> vertRect :: [P3]
+> vertRect = [ p3 (          0, 0,           0)
+>            , p3 (          0, 0, trunkHeight)
+>            , p3 ( baseLength, 0, trunkHeight)
+>            , p3 ( baseLength, 0,           0)
+>            ]
+
+> branchRect :: [P3]
+> branchRect = [ p3 (          0, -baseWidth/2,               0)
+>              , p3 ( baseLength, -baseWidth/2, branchTipHeight)
+>              , p3 ( baseLength,  baseWidth/2, branchTipHeight)
+>              , p3 (          0,  baseWidth/2,               0)
+>              ]
+
+> spin :: Rad -> Rad -> [[P3]] -> [[P3]]
+> spin theta phi = map (map m) 
+>     where m = rotateAboutX (phi - pi) . rotateAboutZ (pi/2 - theta)
+
+> rotateAboutZ :: Rad -> P3 -> P3
+> rotateAboutZ theta = transform (aboutZ theta)
+
+> rotateAboutX :: Rad -> P3 -> P3
+> rotateAboutX theta = transform (aboutX theta)
+
+> flatten :: [[P3]] -> [[P2]]
+> flatten  = map (map projectXY) 
+
+> projectXY :: P3 -> P2
+> projectXY p = p2 (x, y) where (x, y, _) = unp3 p
+
+> draw :: [[P2]] -> Diagram B R2
+> draw pss = (mconcat . map drawRect) (zip pss (cycle [yellow, blue, red]))
+
+> drawRect :: ([P2], Colour Double) -> Diagram B R2
+> drawRect (ps, c) = fromVertices (ps ++ [head ps]) # lw 0.01 # dashing [0.03, 0.03] 0
