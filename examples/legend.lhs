@@ -34,17 +34,17 @@ where `-o` sets the output filename, and `-w` sets the diagram width.
 > planes = [ branchRect, vertRect, horizRect ]
 
 > baseWidth       = 1.5
-> baseLength      = 3.5
-> trunkHeight     = 2
+> baseLength      = 4.0
+> trunkHeight     = 2.5
 > branchTipHeight = trunkHeight / 2
-> theta           = pi * (9.1/10) :: Rad
+> theta           = pi * (9.15/10) :: Rad
 > phi             = pi * (2.2/5) :: Rad
 
 > trunk :: [[P3]]
 > trunk = [[ origin, p3 (0, 0, trunkHeight) ]]
 
-> girth0 = 0.1
-> girth1 = 0.05
+> girth0 = 0.05
+> girth1 = 0.02
 
 > branches :: [[P3]]
 > branches = [ center, left, right ]
@@ -55,24 +55,27 @@ where `-o` sets the output filename, and `-w` sets the diagram width.
 >          right  = [ (origin .+^ v'), p3 (baseLength,  baseWidth/2, branchTipHeight)  ]
 
 > horizRect :: [P3]
-> horizRect = [ p3 (          0, -baseWidth/2, 0)
+> horizRect = [ 
+>               p3 (          0,  baseWidth/2, 0)
+>             , p3 (          0, -baseWidth/2, 0)
 >             , p3 ( baseLength, -baseWidth/2, 0)
 >             , p3 ( baseLength,  baseWidth/2, 0)
->             , p3 (          0,  baseWidth/2, 0)
 >             ] 
 
 > vertRect :: [P3]
-> vertRect = [ p3 (          0, 0,           0)
+> vertRect = [ 
+>              p3 (          0, 0,           0)
 >            , p3 (          0, 0, trunkHeight)
 >            , p3 ( baseLength, 0, trunkHeight)
 >            , p3 ( baseLength, 0,           0)
 >            ]
 
 > branchRect :: [P3]
-> branchRect = [ p3 (          0, -baseWidth/2,               0)
+> branchRect = [ 
+>                p3 (          0,  baseWidth/2,               0)
+>              , p3 (          0, -baseWidth/2,               0)
 >              , p3 ( baseLength, -baseWidth/2, branchTipHeight)
 >              , p3 ( baseLength,  baseWidth/2, branchTipHeight)
->              , p3 (          0,  baseWidth/2,               0)
 >              ]
 
 > spin :: Rad -> Rad -> [[P3]] -> [[P3]]
