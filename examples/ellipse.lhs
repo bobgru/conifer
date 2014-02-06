@@ -127,7 +127,7 @@ Renaming the coefficients, we have
 
 _a'x^2 + b'xy + c'y^2 + d'x + e'y = 1_
 
-We have five unknowns--the coefficients--which are the same for any point
+We have five unknowns—the coefficients—which are the same for any point
 on the ellipse. If we substitute _x_ and _y_ from five different points on
 the ellipse, we get a system of linear equations, which we can solve by 
 row-reducing the matrix for the system.
@@ -136,8 +136,8 @@ We already have points on the circle, so transform them to get points on the ell
 
 > ellipsePoints = map transform1 circlePoints
 
-Create a matrix for the system of equations, where the variables are a, b, c, d, and e, and
-the coefficients are x^2, xy, y^2, x, and y.
+Create a matrix for the system of equations, where the variables are
+_a_, _b_, _c_, _d_, and _e_, and the coefficients are _x_^2, _xy_, _y_^2, _x_, and _y_.
 
 > quadraticFactors :: Matrix Double
 > quadraticFactors = Matrix (map mkRow ellipsePoints)
@@ -162,7 +162,7 @@ point on the ellipse, so try a few from the GHCI prompt for confidence.
 > qPts = [unitX # rotateBy (i/20) # transform1 | i <- [0..19]]
 > qs = map q qPts
 
-We now have the equation of the ellipse. If there is a cross term (i.e. _b_ /= 0), we rotate
+We now have the equation of the ellipse. If there is a cross term (i.e. _b_ ≠ 0), we rotate
 the axes to eliminate it by way of spectral analysis. If there are linear terms remaining,
 we translate the axes to put the ellipse into standard position by way of "completing the
 squares". (**TODO** translation, general case of testing b)
@@ -181,7 +181,7 @@ See "spectral analysis" in any linear algebra textbook for the details.
 
 **Matrix Row Reduction**
 
-This definition of Matrix comes from the ICFP '13 paper on "Fun with Semirings",
+This definition of `Matrix` comes from the ICFP '13 paper "Fun with Semirings",
 in which gaussian elimination is discussed over semirings with closure. I found it
 useful for straightforward row-reduction over the field of `Double`.
 
@@ -212,8 +212,8 @@ row has been processed:
 * Find the first row _i_ with a nonzero entry in column 0.
 * Swap rows _i_ and 0 if they are different. The entry in row 0 column 0 is
   know as the _pivot_.
-* Scale row 0 by (1/_a_) where _a_ is the entry in row 0 in column 0.
-* Linearly combine all rows _k_ /= 0 so that  row_k' = row_k - _a_* row_0 where _a_
+* Scale row 0 by (1/_a_) where _a_ is the pivot, so the pivot becomes 1.
+* Linearly combine all rows _k_ ≠ 0 so that  row_k' = row_k - _a_* row_0 where _a_
   is the entry in row_k in column 0.
 * Repeat with the lower right submatrix of the block matrix.
 
