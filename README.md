@@ -47,3 +47,7 @@ A hand-drawn legend describing six of the parameters:
 
 ![Legend](https://github.com/bobgru/conifer/blob/master/images/hand-drawn-legend.png?raw=true "Legend")
 
+While working on the computer-drawn legend, I did a study of drawing elliptical arcs that
+produced the following picture:
+
+![Ellipse](https://github.com/bobgru/conifer/blob/master/images/ellipse.png?raw=true "Ellipse")

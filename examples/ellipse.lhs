@@ -20,6 +20,8 @@ as desired could be sampled from the original 3D circle projected onto 2D.
 
 > main = defaultMain (example # centerXY # pad 1.2)
 
+![Ellipse](https://github.com/bobgru/conifer/blob/master/images/ellipse.png?raw=true "Ellipse")
+
 > example = ( ellipticalArc # lc yellow
 >          <> circularArc   # lc yellow
 >          <> circ          # lc black
@@ -162,10 +164,10 @@ point on the ellipse, so try a few from the GHCI prompt for confidence.
 > qPts = [unitX # rotateBy (i/20) # transform1 | i <- [0..19]]
 > qs = map q qPts
 
-We now have the equation of the ellipse. If there is a cross term (i.e. _b_ ≠ 0), we rotate
-the axes to eliminate it by way of spectral analysis. If there are linear terms remaining,
-we translate the axes to put the ellipse into standard position by way of "completing the
-squares". (**TODO** translation, general case of testing b)
+We now have the equation of the ellipse. If there is a cross term (i.e. _b_ ≠ 0),
+we rotate the axes to eliminate it. If there are linear terms remaining, we translate
+the axes to put the ellipse into standard position.
+(**TODO** translation, general case of testing b)
 
 The ellipse in standard position gives us the lengths of its major and minor axes, and
 if it was originally rotated, the orthonormal basis vectors give us their directions.
@@ -219,7 +221,7 @@ row has been processed:
 
 If a column has no non-zero entries, reconstitute the matrix as the lower right
 submatrix of the block matrix, but add the tail of row_0 as the new row_0. If we
-started with an _n X n+1_ matrix, this will lead to either infinitely many or no
+started with an _n x n+1_ matrix, this will lead to either infinitely many or no
 solutions which we don't handle. **TODO**
 
 > gaussianReduce :: (Fractional a, Ord a) => Matrix a -> Matrix a
