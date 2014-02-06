@@ -1,14 +1,16 @@
-An ellipse as a transformed circle
-==================================
+Drawing an Elliptical Arc
+=========================
 
 **Introduction**
 
-This program draws a circle on a grid, then the same diagram
-under a transformation, with an analysis of the quadratic form
-of the ellipse.
+This program shows how to deduce the transformation from
+circle to ellipse in order to draw an elliptical arc.
 
-The analysis determines the lengths and directions of the major
-and minor axes of the ellipse.
+The original motivation was to draw a circular arc defined in 3D but projected to 2D,
+which became an elliptical arc in the process. Neither the formula for the ellipse nor
+the effective 2D affine transformation that created it were known, but as many points
+as desired could be sampled from the original 3D circle projected onto 2D.
+
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > module Main where
@@ -69,11 +71,6 @@ created with `transform1` and the elliptical arc created with `transform2`, whic
 should perfectly coincide. To illustrate the analysis, we will also display the
 major and minor axes of the ellipse.
 
-The original motivation was to draw a circular arc defined in 3D but projected to 2D,
-becoming an elliptical arc in the process. Neither the formula for the ellipse nor
-the effective 2D affine transformation that created it were known, but as many points
-as desired could be sampled from the original 3D circle projected onto 2D.
-
 > ellip         =  ellipseAxes
 >               <> circ # transform1
 
@@ -83,7 +80,7 @@ The ellipse axes are the eigenvectors scaled precisely according to the correspo
 eigenvalues, all of which come from spectral analysis of the ellipse's formula.
 
 > ellipseAxes =  fromOffsets [bv1 ^* ((-1) * evScale e1)] # lw 0.2 # lc orange
->             <> fromOffsets [bv2 ^*        (evScale e2)] # lw 0.2 # lc orange
+>             <> fromOffsets [bv2 ^*         evScale e2]  # lw 0.2 # lc orange
 
 For `transform1` we specify the transformation directly in terms of the scale factor
 and its direction.
@@ -107,8 +104,9 @@ transformation would add a translation (which we may do in future).
 The eigenvalue needs to be converted to a half-axis length. Note that this
 formula does not account for translation, i.e. the center of the ellipse
 must be at the origin of the vector space. The derivation of this function
-is explained below.
+is explained below (**TODO**).
 
+> evScale :: Floating a => a -> a
 > evScale ev = sqrt (1/ev)
 
 **Analysis of the Ellipse**
@@ -150,6 +148,7 @@ the coefficients are x^2, xy, y^2, x, and y.
 Reduce the matrix to row-echelon form by gaussian elimination and solve
 for the variable (i.e. coefficients of ellipse formula) values.
 
+> ellipseCoefficients :: Solution Double
 > ellipseCoefficients = (solve . gaussianReduce) quadraticFactors
 > [a,b,c,d,e] = case ellipseCoefficients of
 >                      None   -> error "No solution" 
@@ -260,8 +259,9 @@ If there is no row with a non-zero first column, return an error indication.
 > reduceLeftCol (Matrix (r:rs)) = Matrix (r : map (reduceRowBy r) rs)
 
 > reduceRowBy :: Num a => [a] -> [a] -> [a]
-> reduceRowBy r1 r2 = r2 `addRow` (scaleRow ((-1) * head r2) r1)
+> reduceRowBy r1 r2 = r2 `addRow` scaleRow ((-1) * head r2) r1
 
+> addRow :: Num a => [a] -> [a] -> [a]
 > r1 `addRow` r2 = zipWith (+) r1 r2
 
 > swapListElem []  _ _    = []
@@ -274,6 +274,7 @@ If there is no row with a non-zero first column, return an error indication.
 >     | otherwise = left ++ rs_j ++ middle ++ rs_i ++ right
 >           where (left, rs_i, middle, rs_j, right) = divList rs i j
 
+> divList :: [a] -> Int -> Int -> ([a], [a], [a], [a], [a])
 > divList rs i j = ( take (i-1) rs
 >                  , [rs !! i]
 >                  , take (j-i-1) (drop (i+1) rs)
@@ -285,14 +286,13 @@ If there is no row with a non-zero first column, return an error indication.
 
 > normalizeRow :: (Fractional a, Ord a) => [a] -> [a]
 > normalizeRow [] = []
-> normalizeRow r@(x:xs) =
->     case equivZero x of
->         True  -> (x : normalizeRow xs)
->         False -> scaleRow (1/x) r
+> normalizeRow r@(x:xs) = if equivZero x then x : normalizeRow xs else scaleRow (1/x) r
 
+> equivZero :: (Fractional a, Ord a) => a -> Bool
 > equivZero x = abs x < 1e-20
 
-> scaleRow a r = map (*a) r
+> scaleRow :: Num a => a -> [a] -> [a]
+> scaleRow a = map (*a)
 
 A system of linear equations can have zero, one, or infinitely many solutions.
 We can tell the difference by examining the last row of a reduced matrix.
@@ -307,11 +307,10 @@ We can tell the difference by examining the last row of a reduced matrix.
 > data Solution a = One [a] | None | Many deriving (Show)
 
 > solve :: (Fractional a, Ord a) => Matrix a -> Solution a
-> solve (Matrix m) = if all equivZero r
->                         then Many
->                         else if equivZero (last (init r))
->                             then None
->                             else One (solveOne m) 
+> solve (Matrix m)
+>     | all equivZero r           = Many
+>     | equivZero (last (init r)) = None
+>     | otherwise                 = One (solveOne m) 
 >     where r = last m
 
 Assuming there is one solution, the last row gives the value of `e` directly.
