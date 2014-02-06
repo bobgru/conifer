@@ -43,6 +43,8 @@ build-type:          Simple
 extra-source-files:  README.md
                    , examples/individual.lhs
                    , examples/comparison.lhs
+                   , examples/legend.lhs
+                   , examples/ellipse.lhs
 
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
@@ -87,7 +89,12 @@ Executable comparison
 
 Executable legend
   Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class
-                , conifer
   Main-Is:        legend.lhs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
+Executable ellipse
+  Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class
+  Main-Is:        ellipse.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
