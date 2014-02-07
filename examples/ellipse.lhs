@@ -11,7 +11,6 @@ which became an elliptical arc in the process. Neither the formula for the ellip
 the effective 2D affine transformation that created it were known, but as many points
 as desired could be sampled from the original 3D circle projected onto 2D.
 
-
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > module Main where
 > import Diagrams.Prelude
@@ -22,10 +21,10 @@ as desired could be sampled from the original 3D circle projected onto 2D.
 
 ![Ellipse](https://github.com/bobgru/conifer/blob/master/images/ellipse.png?raw=true "Ellipse")
 
-> example = ( ellipticalArc # lc yellow
+> example = ( ellipticalArc # lc orange
 >          <> circularArc   # lc yellow
->          <> circ          # lc black
->          <> ellip         # lc lightgray
+>          <> ellip         # lc black
+>          <> circ          # lc lightgray
 >           ) # scale 10
 
 **The Circle**
@@ -81,32 +80,37 @@ major and minor axes of the ellipse.
 The ellipse axes are the eigenvectors scaled precisely according to the corresponding
 eigenvalues, all of which come from spectral analysis of the ellipse's formula.
 
-> ellipseAxes =  fromOffsets [bv1 ^* ((-1) * evScale e1)] # lw 0.2 # lc orange
->             <> fromOffsets [bv2 ^*         evScale e2]  # lw 0.2 # lc orange
+> ellipseAxes =  fromOffsets [bv1 ^* evScale e1] # lw 0.2 # lc orange
+>             <> fromOffsets [bv2 ^* evScale e2] # lw 0.2 # lc orange
 
 For `transform1` we specify the transformation directly in terms of the scale factor
 and its direction.
 
-> transform1 = transformBy r theta
-> r          = 0.4
-> theta      = tau / 20 :: Rad
+> transform1 = transformBy dr2 dtheta2 . transformBy dr1 dtheta1
+> dr1         = 0.4
+> dtheta1     = -(tau / 4 - tau / 10) :: Rad
+> dr2         = 0.8
+> dtheta2     = -tau / 20 :: Rad
 
 For `transform2` we build up the transformation by scaling appropriately along the
 eigenvectors. The values `e1` and `e2` are the eigenvalues calculated below, and
 `bv1` and `bv2` the corresponding orthonormal basis vectors.
 
-> transform2 = transformBy (evScale e1) (- (direction bv1) :: Rad)
->            . transformBy (evScale e2)    (direction bv2  :: Rad)
+> transform2 = transformBy (evScale e1) (direction bv1 :: Rad)
+>            . transformBy (evScale e2) (direction bv2 :: Rad)
 
 Our general transformation is scaling in a certain direction. A general affine
 transformation would add a translation (which we may do in future).
 
-> transformBy r theta = scaleX r `under` rotation theta
+Note that the rotation by `theta` is undone, the scaling is applied, then the 
+rotation by `theta` is reapplied, with the net effect of having done the scaling
+in the direction of `theta`.
+
+> transformBy r theta = scaleX r `under` rotation (-theta)
 
 The eigenvalue needs to be converted to a half-axis length. Note that this
 formula does not account for translation, i.e. the center of the ellipse
-must be at the origin of the vector space. The derivation of this function
-is explained below (**TODO**).
+must be at the origin of the vector space.
 
 > evScale :: Floating a => a -> a
 > evScale ev = sqrt (1/ev)
@@ -151,7 +155,7 @@ Reduce the matrix to row-echelon form by gaussian elimination and solve
 for the variable (i.e. coefficients of ellipse formula) values.
 
 > ellipseCoefficients :: Solution Double
-> ellipseCoefficients = (solve . gaussianReduce) quadraticFactors
+> ellipseCoefficients = solve quadraticFactors
 > [a,b,c,d,e] = case ellipseCoefficients of
 >                      None   -> error "No solution" 
 >                      Many   -> error "Many solutions"
@@ -167,19 +171,38 @@ point on the ellipse, so try a few from the GHCI prompt for confidence.
 We now have the equation of the ellipse. If there is a cross term (i.e. _b_ ≠ 0),
 we rotate the axes to eliminate it. If there are linear terms remaining, we translate
 the axes to put the ellipse into standard position.
-(**TODO** translation, general case of testing b)
 
 The ellipse in standard position gives us the lengths of its major and minor axes, and
 if it was originally rotated, the orthonormal basis vectors give us their directions.
 See "spectral analysis" in any linear algebra textbook for the details.
 
+The basis vectors are chosen to be in quadrants I or IV, i.e. pointing to the right,
+so that the `transformBy` function will work.
+
 > [(e1, bv1), (e2, bv2)] = solveQuadraticForm a b c
 
 > solveQuadraticForm :: Double -> Double -> Double -> [(Double, R2)]
-> solveQuadraticForm a b c = [(eigen1, basisVector eigen1), (eigen2, basisVector eigen2)]
+> solveQuadraticForm a b c
+>     | equivZero b = [(a, unitX), (c, unitY)]
+>     | otherwise   = checkSwap [(eigen1, bv eigen1), (eigen2, bv eigen2)]
 >     where eigen1 = ((a+c) + sqrt ((a-c)^2 + b^2)) / 2
 >           eigen2 = ((a+c) - sqrt ((a-c)^2 + b^2)) / 2
->           basisVector x = r2 ((b/2)/(x-a), 1) # normalized
+>           bv x   = if b/(x-a) > 0
+>                        then r2 ( (b/2)/(x-a),  1) # normalized
+>                        else r2 (-(b/2)/(x-a), -1) # normalized
+
+As we are producing the matrix of a rotation, it must have a determinant of 1.
+If the determinant is negative, then swap the columns and associated eigenvalues.
+We don't need to check that the determinant has absolute value 1 because the column
+vectors have been normalized.
+
+> checkSwap :: [(Double, R2)] -> [(Double, R2)]
+> checkSwap [p1@(e1, bv1), p2@(e2, bv2)] = if det bv1 bv2 < 0 then [p2,p1] else [p1,p2]
+
+> det :: R2 -> R2 -> Double
+> det v1 v2 = x11 * x22 - x12 * x21
+>     where (x11, x21) = unr2 v1
+>           (x12, x22) = unr2 v2
 
 **Matrix Row Reduction**
 
@@ -209,15 +232,16 @@ recurses over submatrices.
 >     where (first:top) = row
 >           (left, rest) = unzip (map (\(x:xs) -> ([x],xs)) rows)
 
-Gaussian elimination consists of repeating the following until every
-row has been processed:
-* Find the first row _i_ with a nonzero entry in column 0.
+The method of gaussian elimination known as _pivot condensation_ consists of 
+repeating the following until every row has been processed:
+* Find the row _i_ with largest absolute value in column 0.
 * Swap rows _i_ and 0 if they are different. The entry in row 0 column 0 is
   know as the _pivot_.
 * Scale row 0 by (1/_a_) where _a_ is the pivot, so the pivot becomes 1.
 * Linearly combine all rows _k_ ≠ 0 so that  row_k' = row_k - _a_* row_0 where _a_
   is the entry in row_k in column 0.
-* Repeat with the lower right submatrix of the block matrix.
+* Repeat with the lower right submatrix of the block matrix until the
+  pivot is in the last row.
 
 If a column has no non-zero entries, reconstitute the matrix as the lower right
 submatrix of the block matrix, but add the tail of row_0 as the new row_0. If we
@@ -242,9 +266,9 @@ solutions which we don't handle. **TODO**
 > restoreCol :: Num a => Matrix a -> Matrix a
 > restoreCol (Matrix m) = Matrix (map (0:) m)
 
-Fix the pivot by floating the row with the first non-zero value in the first column
-to the top, then dividing that row by its first entry. The result will be a 1 in the
-first column of the first row.
+Fix the pivot by exchanging row 0, if necessary, with the row containing the
+largest absolute value in column 0, then dividing the new row 0 by its first entry.
+The result will be a 1 in the first column of the first row.
 
 If there is no row with a non-zero first column, return an error indication.
 
@@ -252,8 +276,8 @@ If there is no row with a non-zero first column, return an error indication.
 > pivotMatrix (Matrix m) = if null test then Left "No pivot" else Right (Matrix m3)
 >     where (r:rs) = m
 >           test = filter (\(i,r)->(not . equivZero) (head r)) (zip [0..] m)
->           (i,r0) = head test
->           m2 = if i==0 then m else swapListElem m 0 i
+>           (absPivot, i) = maximum [(abs (head r), i) | (i, r) <- test ]
+>           m2 = if i==0 then m else swapRowsByIndex m 0 i
 >           m3 = normalizeRow (head m2) : tail m2
 
 > reduceLeftCol :: (Fractional a, Ord a) => Matrix a -> Matrix a
@@ -261,11 +285,37 @@ If there is no row with a non-zero first column, return an error indication.
 > reduceLeftCol (Matrix (r:rs)) = Matrix (r : map (reduceRowBy r) rs)
 
 > reduceRowBy :: Num a => [a] -> [a] -> [a]
-> reduceRowBy r1 r2 = r2 `addRow` scaleRow ((-1) * head r2) r1
+> -- reduceRowBy r1 r2 = r2 `addRows` scaleRow ((-1) * head r2) r1
+> reduceRowBy r1 r2 = combineRows (-(head r2)) r1 r2
 
-> addRow :: Num a => [a] -> [a] -> [a]
-> r1 `addRow` r2 = zipWith (+) r1 r2
+> gaussianReduceBlock :: (Fractional a, Ord a) => BlockMatrix a -> BlockMatrix a
+> gaussianReduceBlock (a, b, c, rest) = (a, b, c, gaussianReduce rest)
 
+> normalizeRow :: (Fractional a, Ord a) => [a] -> [a]
+> normalizeRow [] = []
+> normalizeRow r@(x:xs) = if equivZero x then x : normalizeRow xs else scaleRow (1/x) r
+
+> equivZero :: (Fractional a, Ord a) => a -> Bool
+> equivZero x = abs x < 1e-20
+
+The three elementary row operations on a matrix are scale, linearly combine,
+and swap.
+
+> scaleRow :: Num a => a -> [a] -> [a]
+> scaleRow a = map (*a)
+
+> combineRows :: Num a => a -> [a] -> [a] -> [a]
+> combineRows a r1 r2 = addRows (scaleRow a r1) r2
+
+> swapRowsByIndex :: [a] -> Int -> Int -> [a]
+> swapRowsByIndex = swapListElem
+
+Additional helper functions:
+
+> addRows :: Num a => [a] -> [a] -> [a]
+> addRows r1 r2 = zipWith (+) r1 r2
+
+> swapListElem :: [a] -> Int -> Int -> [a]
 > swapListElem []  _ _    = []
 > swapListElem [r] _ _    = [r]
 > swapListElem rs i j
@@ -283,19 +333,6 @@ If there is no row with a non-zero first column, return an error indication.
 >                  , [rs !! j]
 >                  , drop (j+1) rs)
 
-> gaussianReduceBlock :: (Fractional a, Ord a) => BlockMatrix a -> BlockMatrix a
-> gaussianReduceBlock (a, b, c, rest) = (a, b, c, gaussianReduce rest)
-
-> normalizeRow :: (Fractional a, Ord a) => [a] -> [a]
-> normalizeRow [] = []
-> normalizeRow r@(x:xs) = if equivZero x then x : normalizeRow xs else scaleRow (1/x) r
-
-> equivZero :: (Fractional a, Ord a) => a -> Bool
-> equivZero x = abs x < 1e-20
-
-> scaleRow :: Num a => a -> [a] -> [a]
-> scaleRow a = map (*a)
-
 A system of linear equations can have zero, one, or infinitely many solutions.
 We can tell the difference by examining the last row of a reduced matrix.
 
@@ -309,7 +346,10 @@ We can tell the difference by examining the last row of a reduced matrix.
 > data Solution a = One [a] | None | Many deriving (Show)
 
 > solve :: (Fractional a, Ord a) => Matrix a -> Solution a
-> solve (Matrix m)
+> solve = solve' . gaussianReduce
+
+> solve' :: (Fractional a, Ord a) => Matrix a -> Solution a
+> solve' (Matrix m)
 >     | all equivZero r           = Many
 >     | equivZero (last (init r)) = None
 >     | otherwise                 = One (solveOne m) 
