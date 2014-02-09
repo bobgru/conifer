@@ -11,21 +11,21 @@ which became an elliptical arc in the process. Neither the formula for the ellip
 the effective 2D affine transformation that created it were known, but as many points
 as desired could be sampled from the original 3D circle projected onto 2D.
 
-
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > module Main where
 > import Diagrams.Prelude
 > import Diagrams.Backend.SVG.CmdLine
 > import Data.Default.Class
+> import Matrix
 
 > main = defaultMain (example # centerXY # pad 1.2)
 
 ![Ellipse](https://github.com/bobgru/conifer/blob/master/images/ellipse.png?raw=true "Ellipse")
 
-> example = ( ellipticalArc # lc yellow
+> example = ( ellipticalArc # lc orange
 >          <> circularArc   # lc yellow
->          <> circ          # lc black
->          <> ellip         # lc lightgray
+>          <> ellip         # lc black
+>          <> circ          # lc lightgray
 >           ) # scale 10
 
 **The Circle**
@@ -73,7 +73,7 @@ created with `transform1` and the elliptical arc created with `transform2`, whic
 should perfectly coincide. To illustrate the analysis, we will also display the
 major and minor axes of the ellipse.
 
-> ellip         =  ellipseAxes
+> ellip         =  ellipseAxes # translate offsetXY
 >               <> circ # transform1
 
 > ellipticalArc = arc beginAngle endAngle # lw 0.2 # transform2
@@ -81,53 +81,49 @@ major and minor axes of the ellipse.
 The ellipse axes are the eigenvectors scaled precisely according to the corresponding
 eigenvalues, all of which come from spectral analysis of the ellipse's formula.
 
-> ellipseAxes =  fromOffsets [bv1 ^* ((-1) * evScale e1)] # lw 0.2 # lc orange
->             <> fromOffsets [bv2 ^*         evScale e2]  # lw 0.2 # lc orange
+> ellipseAxes =  fromOffsets [bv1 ^* evScale e1] # lw 0.2 # lc orange
+>             <> fromOffsets [bv2 ^* evScale e2] # lw 0.2 # lc orange
 
-For `transform1` we specify the transformation directly in terms of the scale factor
-and its direction.
+For `transform1` we specify the transformation directly in terms of scale factors
+and directions, plus a translation.
 
-> transform1 = transformBy r theta
-> r          = 0.4
-> theta      = tau / 20 :: Rad
+> transform1 = translate (r2(dx, dy))
+>            . transformBy dr2 dtheta2
+>            . transformBy dr1 dtheta1
+> dr1         = 0.4
+> dtheta1     = -(tau / 4 - tau / 10) :: Rad
+> dr2         = 0.8
+> dtheta2     = -tau / 20 :: Rad
+> dx         = 0.5
+> dy         = 0.25
 
 For `transform2` we build up the transformation by scaling appropriately along the
-eigenvectors. The values `e1` and `e2` are the eigenvalues calculated below, and
-`bv1` and `bv2` the corresponding orthonormal basis vectors.
+eigenvectors, then translating, if necessary. The values `e1` and `e2` are the
+eigenvalues calculated below, and `bv1` and `bv2` the corresponding orthonormal
+basis vectors.
 
-> transform2 = transformBy (evScale e1) (- (direction bv1) :: Rad)
->            . transformBy (evScale e2)    (direction bv2  :: Rad)
+> transform2 = translate offsetXY
+>            . transformBy (evScale e1) (direction bv1 :: Rad)
+>            . transformBy (evScale e2) (direction bv2 :: Rad)
 
 Our general transformation is scaling in a certain direction. A general affine
-transformation would add a translation (which we may do in future).
+transformation would add a translation. We apply translations in a separate step.
 
-> transformBy r theta = scaleX r `under` rotation theta
+Note that the rotation by `theta` is undone, the scaling is applied, then the 
+rotation by `theta` is reapplied, with the net effect of having done the scaling
+in the direction of `theta`.
 
-The eigenvalue needs to be converted to a half-axis length. Note that this
-formula does not account for translation, i.e. the center of the ellipse
-must be at the origin of the vector space. The derivation of this function
-is explained below (**TODO**).
-
-> evScale :: Floating a => a -> a
-> evScale ev = sqrt (1/ev)
+> transformBy r theta = scaleX r `under` rotation (-theta)
 
 **Analysis of the Ellipse**
 
 The general form of the equation of an ellipse is
 
-_ax^2 + bxy + cy^2 + dx + ey + f = 0_
+_ax^2 + bxy + cy^2 + dx + ey = 1_
 
-or
-
-_ax^2 + bxy + cy^2 + dx + ey = -f_
-
-or
-
-_(-a/f)x^2 + (-b/f)xy + (-c/f)y^2 + (-d/f)x + (-e/f)y = 1_
-
-Renaming the coefficients, we have
-
-_a'x^2 + b'xy + c'y^2 + d'x + e'y = 1_
+The general quadratic equation is usually given with a constant term _f_ and 0 on 
+the right hand side. By subtracting _f_ then dividing by _-f_ on both sides, the
+above form of the equation emerges.
 
 We have five unknowns—the coefficients—which are the same for any point
 on the ellipse. If we substitute _x_ and _y_ from five different points on
@@ -148,10 +144,10 @@ _a_, _b_, _c_, _d_, and _e_, and the coefficients are _x_^2, _xy_, _y_^2, _x_, a
 > mkRow p = case unp2 p of (x, y) -> [x*x, x*y, y*y, x, y, 1]
 
 Reduce the matrix to row-echelon form by gaussian elimination and solve
-for the variable (i.e. coefficients of ellipse formula) values.
+for the variable values.
 
 > ellipseCoefficients :: Solution Double
-> ellipseCoefficients = (solve . gaussianReduce) quadraticFactors
+> ellipseCoefficients = solve quadraticFactors
 > [a,b,c,d,e] = case ellipseCoefficients of
 >                      None   -> error "No solution" 
 >                      Many   -> error "Many solutions"
@@ -159,172 +155,61 @@ for the variable (i.e. coefficients of ellipse formula) values.
 
 The left hand side of the quadratic equation should evaluate to 1 for every
 point on the ellipse, so try a few from the GHCI prompt for confidence.
+Remember that vectors are translation-invariant, so we have to convert to
+points.
 
-> q r = case unr2 r of (x,y) -> a*x*x + b*x*y + c*y*y + d*x + e*y
-> qPts = [unitX # rotateBy (i/20) # transform1 | i <- [0..19]]
+> q r = case unp2 r of (x,y) -> a*x*x + b*x*y + c*y*y + d*x + e*y
+> qPts = [(origin .+^ unitX) # rotateBy (i/20) # transform1 | i <- [0..20]]
 > qs = map q qPts
 
 We now have the equation of the ellipse. If there is a cross term (i.e. _b_ ≠ 0),
 we rotate the axes to eliminate it. If there are linear terms remaining, we translate
 the axes to put the ellipse into standard position.
-(**TODO** translation, general case of testing b)
 
 The ellipse in standard position gives us the lengths of its major and minor axes, and
 if it was originally rotated, the orthonormal basis vectors give us their directions.
 See "spectral analysis" in any linear algebra textbook for the details.
 
+The basis vectors are chosen to be in quadrants I or IV, i.e. pointing to the right,
+so that the `transformBy` function will work.
+
 > [(e1, bv1), (e2, bv2)] = solveQuadraticForm a b c
 
 > solveQuadraticForm :: Double -> Double -> Double -> [(Double, R2)]
-> solveQuadraticForm a b c = [(eigen1, basisVector eigen1), (eigen2, basisVector eigen2)]
+> solveQuadraticForm a b c
+>     | equivZero b = [(a, unitX), (c, unitY)]
+>     | otherwise   = checkSwap [(eigen1, bv eigen1), (eigen2, bv eigen2)]
 >     where eigen1 = ((a+c) + sqrt ((a-c)^2 + b^2)) / 2
 >           eigen2 = ((a+c) - sqrt ((a-c)^2 + b^2)) / 2
->           basisVector x = r2 ((b/2)/(x-a), 1) # normalized
+>           bv x   = if b/(x-a) > 0
+>                        then r2 ( (b/2)/(x-a),  1) # normalized
+>                        else r2 (-(b/2)/(x-a), -1) # normalized
 
-**Matrix Row Reduction**
+As we are producing the matrix of a rotation, it must have a determinant of 1.
+If the determinant is negative, then swap the columns and associated eigenvalues.
+We don't need to check that the determinant has absolute value 1 because the column
+vectors have been normalized.
 
-This definition of `Matrix` comes from the ICFP '13 paper "Fun with Semirings",
-in which gaussian elimination is discussed over semirings with closure. I found it
-useful for straightforward row-reduction over the field of `Double`.
+> checkSwap :: [(Double, R2)] -> [(Double, R2)]
+> checkSwap [p1@(e1, bv1), p2@(e2, bv2)] = if det bv1 bv2 < 0 then [p2,p1] else [p1,p2]
 
-The `BlockMatrix` isolates the upper left entry of a matrix and the lower right
-submatrix consisting of one fewer row and column. Our row-reduction algorithm
-recurses over submatrices.
+Calculate the determinant of a 2 x 2 matrix given the column vectors.
 
-> data Matrix a = Matrix [[a]] deriving Show
+> det :: R2 -> R2 -> Double
+> det v1 v2 = x11 * x22 - x12 * x21
+>     where (x11, x21) = unr2 v1
+>           (x12, x22) = unr2 v2
 
-> type BlockMatrix a = (Matrix a, Matrix a,
->                       Matrix a, Matrix a)
+The translation is calculated in terms of the rotated coordinate system--that is, we
+eliminate the cross-term first, then translate--so we must rotate the translation offset
+back to the original coordinates before applying.
 
-> mjoin :: BlockMatrix a -> Matrix a
-> mjoin (Matrix a, Matrix b,
->        Matrix c, Matrix d) =
->       Matrix ((a `hcat` b) ++ (c `hcat` d))
->     where hcat = zipWith (++)
+> offsetXY = rotate (direction bv1::Rad) (r2(-d'/(2*e1), -e'/(2*e2)))
+> (d', e') = (d * p11 + e * p21, d * p12 + e * p22)
+>     where (p11, p21) = unr2 bv1
+>           (p12, p22) = unr2 bv2
 
-> msplit :: Matrix a -> BlockMatrix a
-> msplit (Matrix (row:rows)) =
->     (Matrix [[first]], Matrix [top],
->      Matrix left,      Matrix rest)
->     where (first:top) = row
->           (left, rest) = unzip (map (\(x:xs) -> ([x],xs)) rows)
+An eigenvalue needs to be converted to a half-axis length.
 
-Gaussian elimination consists of repeating the following until every
-row has been processed:
-* Find the first row _i_ with a nonzero entry in column 0.
-* Swap rows _i_ and 0 if they are different. The entry in row 0 column 0 is
-  know as the _pivot_.
-* Scale row 0 by (1/_a_) where _a_ is the pivot, so the pivot becomes 1.
-* Linearly combine all rows _k_ ≠ 0 so that  row_k' = row_k - _a_* row_0 where _a_
-  is the entry in row_k in column 0.
-* Repeat with the lower right submatrix of the block matrix.
-
-If a column has no non-zero entries, reconstitute the matrix as the lower right
-submatrix of the block matrix, but add the tail of row_0 as the new row_0. If we
-started with an _n x n+1_ matrix, this will lead to either infinitely many or no
-solutions which we don't handle. **TODO**
-
-> gaussianReduce :: (Fractional a, Ord a) => Matrix a -> Matrix a
-> gaussianReduce (Matrix [xs]) = Matrix [ normalizeRow xs ]
-> gaussianReduce m =
->     case pivotMatrix m of
->              Left _   -> case skipCol m of
->                              Left s -> error ("gaussianReduce failed: " ++ s)
->                              Right m' -> (restoreCol . gaussianReduce) m'
->              Right m' -> (mjoin . gaussianReduceBlock . msplit . reduceLeftCol) m'
-
-> skipCol :: Matrix a -> Either String (Matrix a)
-> skipCol (Matrix m) =
->     if null m || 1 == length (head m)
->         then Left "Can't skipCol"
->         else Right (Matrix (map tail m))
-
-> restoreCol :: Num a => Matrix a -> Matrix a
-> restoreCol (Matrix m) = Matrix (map (0:) m)
-
-Fix the pivot by floating the row with the first non-zero value in the first column
-to the top, then dividing that row by its first entry. The result will be a 1 in the
-first column of the first row.
-
-If there is no row with a non-zero first column, return an error indication.
-
-> pivotMatrix :: (Fractional a, Ord a) => Matrix a -> Either String (Matrix a)
-> pivotMatrix (Matrix m) = if null test then Left "No pivot" else Right (Matrix m3)
->     where (r:rs) = m
->           test = filter (\(i,r)->(not . equivZero) (head r)) (zip [0..] m)
->           (i,r0) = head test
->           m2 = if i==0 then m else swapListElem m 0 i
->           m3 = normalizeRow (head m2) : tail m2
-
-> reduceLeftCol :: (Fractional a, Ord a) => Matrix a -> Matrix a
-> reduceLeftCol (Matrix [x:xs]) = Matrix [x:xs]
-> reduceLeftCol (Matrix (r:rs)) = Matrix (r : map (reduceRowBy r) rs)
-
-> reduceRowBy :: Num a => [a] -> [a] -> [a]
-> reduceRowBy r1 r2 = r2 `addRow` scaleRow ((-1) * head r2) r1
-
-> addRow :: Num a => [a] -> [a] -> [a]
-> r1 `addRow` r2 = zipWith (+) r1 r2
-
-> swapListElem []  _ _    = []
-> swapListElem [r] _ _    = [r]
-> swapListElem rs i j
->     | i >= length rs || j >= length rs = 
->         error ("swapListElem: bad list index " ++ show i ++ " or " ++ show j)
->     | i == j    = rs
->     | i > j     = swapListElem rs j i
->     | otherwise = left ++ rs_j ++ middle ++ rs_i ++ right
->           where (left, rs_i, middle, rs_j, right) = divList rs i j
-
-> divList :: [a] -> Int -> Int -> ([a], [a], [a], [a], [a])
-> divList rs i j = ( take (i-1) rs
->                  , [rs !! i]
->                  , take (j-i-1) (drop (i+1) rs)
->                  , [rs !! j]
->                  , drop (j+1) rs)
-
-> gaussianReduceBlock :: (Fractional a, Ord a) => BlockMatrix a -> BlockMatrix a
-> gaussianReduceBlock (a, b, c, rest) = (a, b, c, gaussianReduce rest)
-
-> normalizeRow :: (Fractional a, Ord a) => [a] -> [a]
-> normalizeRow [] = []
-> normalizeRow r@(x:xs) = if equivZero x then x : normalizeRow xs else scaleRow (1/x) r
-
-> equivZero :: (Fractional a, Ord a) => a -> Bool
-> equivZero x = abs x < 1e-20
-
-> scaleRow :: Num a => a -> [a] -> [a]
-> scaleRow a = map (*a)
-
-A system of linear equations can have zero, one, or infinitely many solutions.
-We can tell the difference by examining the last row of a reduced matrix.
-
-* If it has nonzero entries in the rightmost two columns, there is one solution
-  which can be found by back-substitution.
-* If it has a single nonzero entry in the rightmost column, there are no solutions,
-  because the translation back to a system of equations includes the contradiction
-  0 = _c_ for some nonzero value _c_.
-* If it has all zeroes, there are infinitely many solutions. **TODO**
-
-> data Solution a = One [a] | None | Many deriving (Show)
-
-> solve :: (Fractional a, Ord a) => Matrix a -> Solution a
-> solve (Matrix m)
->     | all equivZero r           = Many
->     | equivZero (last (init r)) = None
->     | otherwise                 = One (solveOne m) 
->     where r = last m
-
-Assuming there is one solution, the last row gives the value of `e` directly.
-The previous row gives `d` in terms of `e` and a constant, so we can substitute
-the know value of `e`. Continuing up the matrix, we substitute known values in
-each equation to determine the next unknown until we know all values.
-
-> solveOne :: Num a => [[a]] -> [a]
-> solveOne = reverse . foldl accumSolution [] . reverse
-
-> accumSolution :: Num a => [a] -> [a] -> [a]
-> accumSolution sln r = sln ++ nextValue sln r
-
-> nextValue :: Num a => [a] -> [a] -> [a]
-> nextValue sln r = [last r - sum (zipWith (*) (reverse (init r)) sln)]
+> evScale :: Double -> Double
+> evScale ev = sqrt ((1/ev) * (1 + d'*d'/(4*e1) + e'*e'/(4*e2)))

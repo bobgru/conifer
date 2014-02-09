@@ -52,7 +52,7 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules:     Conifer
+  exposed-modules:     Conifer, Matrix
   
   -- Modules included in this library but not exported.
   -- other-modules:       
@@ -94,7 +94,16 @@ Executable legend
   default-language:    Haskell2010
 
 Executable ellipse
-  Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class
+  Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class, conifer
   Main-Is:        ellipse.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
+
+Test-Suite matrix-unit-tests
+  Type:           exitcode-stdio-1.0
+  Main-Is:        matrixTests.lhs
+  Buildable:      True
+  Build-Depends:  base -any, QuickCheck -any, conifer
+  hs-source-dirs: tests/unit-tests
+  default-language:    Haskell2010
+
