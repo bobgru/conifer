@@ -108,11 +108,11 @@ the elliptical arcs for indicating angles:
 
 > branches :: [[P3]]
 > branches = [ center, left, right ]
->    where v = r3 (baseLength, 0, branchTipHeight)
->          v' = v # scale (2/3) -- pick the branching point
->          center = [ origin, origin .+^ v # scale 1.2 ]
->          left   = [ (origin .+^ v'), p3 (baseLength, -baseWidth/2, branchTipHeight)  ]
->          right  = [ (origin .+^ v'), p3 (baseLength,  baseWidth/2, branchTipHeight)  ]
+>    where center = [ origin, branchPoint # scale 1.8 ]
+>          left   = [ branchPoint, p3 (baseLength, -baseWidth/2, branchTipHeight)  ]
+>          right  = [ branchPoint, p3 (baseLength,  baseWidth/2, branchTipHeight)  ]
+
+> branchPoint = p3 (baseLength, 0, branchTipHeight) # scale (2/3)
 
 > trunkAnglePts :: [[P3]]
 > trunkAnglePts = [ map (origin .+^) [T3V.unitX, T3V.unit_X, T3V.unitZ, T3V.unit_Z, 
@@ -122,6 +122,21 @@ the elliptical arcs for indicating angles:
 > trunkBranchAngle = T3V.angleBetween T3V.unitX (p .-. origin) 
 >     where p = last (last trunkAnglePts)
 
+Define enough points on a circle to draw an elliptical arc between the side branches.
+
+> branchAnglePts :: [[P3]]
+> branchAnglePts = [[
+>                     branchPoint .+^ ((pt1 .-. branchPoint)    # normalized # scale r)
+>                  ,  branchPoint .+^ ((pt2 .-. branchPoint)    # normalized # scale r)
+>                  ,  branchPoint .+^ ((branchPoint .-. pt1)    # normalized # scale r)
+>                  ,  branchPoint .+^ ((branchPoint .-. pt2)    # normalized # scale r)
+>                  ,  branchPoint .+^ ((branchPoint .-. origin) # normalized # scale r)
+>                  ]]
+>     where pt1 = p3 (baseLength, -baseWidth/2, branchTipHeight)
+>           pt2 = p3 (baseLength,  baseWidth/2, branchTipHeight)
+>           r   = s * magnitude (branchPoint .-. pt1)
+>           s   = 0.3
+
 **The Main Program**
 
 Assemble the components of the diagram.
@@ -129,6 +144,8 @@ Assemble the components of the diagram.
 > main = defaultMain (legend theta phi # centerXY # pad 1.2)
 
 > legend theta phi =  legendTrunkAngle
+>                  <> legendBranchAngles
+>               --   <> legendBranchAnglePoints
 >                  <> legendPlanes
 >                  <> legendTrunk
 >                  <> legendBranches
@@ -142,6 +159,8 @@ Assemble the components of the diagram.
 > legendPlanes :: Diagram B R2
 > legendPlanes = (drawPlanes . modelToScreen) planes
 
+**TODO** Fix the angle fudging; scale the original points rather than the arc
+
 > legendTrunkAngle :: Diagram B R2
 > legendTrunkAngle = drawEllipticalArc ei a1' a2' # scale r
 >     where a1            = trunkBranchAngle
@@ -152,6 +171,25 @@ Assemble the components of the diagram.
 >           [ps]           = modelToScreen trunkAnglePts
 >           ei             = ellipseFromPoints ps
 >           angleFudge     = 0.15::Rad	-- compensate for rounding error in drawEllipticalArc
+
+**TODO** Fix the angle calculation
+
+> legendBranchAngles :: Diagram B R2
+> legendBranchAngles = drawEllipticalArc ei a1' a2'
+>     where a1   = trunkBranchAngle
+>           a2   = P.direction P.unitY :: Rad
+>           a1'  = a1 + (0.57::Rad)
+>           a2'  = a2 + (0.29::Rad)
+>           [ps] = modelToScreen branchAnglePts
+>           ei   = ellipseFromPoints ps
+
+Show the points involved in drawing the elliptical arc between the branches,
+for debugging.
+
+> legendBranchAnglePoints :: Diagram B R2
+> legendBranchAnglePoints = position (zip ps (repeat dot))
+>     where dot = circle 0.02 # lw 0 # fc blue
+>           [ps] = branchAnglePts # modelToScreen
 
 > drawPlanes :: [[P2]] -> Diagram B R2
 > drawPlanes = mconcat . map drawRect
