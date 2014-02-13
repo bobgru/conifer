@@ -12,7 +12,6 @@ parameters for the virtual conifer.
 > import Diagrams.ThreeD.Transform as T3D
 > import Diagrams.ThreeD.Vector as T3V
 > import Data.Default.Class
-> import Data.List (minimumBy)
 > import Conics(ellipseFromPoints, drawEllipticalArc)
 
 Run the program with `dist/build/legend/legend -o legend.svg -w 400` 
@@ -29,10 +28,12 @@ found by experimentation.
 
 **The Model-to-Screen Transformation**
 
-Spin the model so that a projection of the new XY-plane is trivial.
+Rotate the model according to `theta` and `phi` and project onto the _XY_-plane.
 
 > modelToScreen :: [[P3]] -> [[P2]]
 > modelToScreen = flatten . spin theta phi
+
+Spin the model so that a projection of the new _XY_-plane is trivial.
 
 > spin :: Rad -> Rad -> [[P3]] -> [[P3]]
 > spin theta phi = map (map m) 
