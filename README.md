@@ -29,7 +29,7 @@ a plane for rendering.
 Example programs show how to draw an individual tree, and an array of them.
 There is also an example to draw a legend, shown below, to describe the meaning
 of the parameters, inspired by an image from _The Self-Made Tapestry_ by Philip Ball.
-The SVG file looks much better than the PNG file show below, mainly because the
+The SVG file looks much better than the PNG file shown below, mainly because the
 fonts were unfortunately converted from serif to sans-serif.
 
 A comparison of nine different trees:
