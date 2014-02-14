@@ -144,7 +144,8 @@ Assemble the components of the diagram.
 
 > main = defaultMain (legend theta phi # centerXY # pad 1.2)
 
-> legend theta phi =  legendTrunkAngle
+> legend theta phi =  legendLabels
+>                  <> legendTrunkAngle
 >                  <> legendBranchAngles
 >               --   <> legendBranchAnglePoints
 >                  <> legendPlanes
@@ -191,6 +192,37 @@ for debugging.
 > legendBranchAnglePoints = position (zip ps (repeat dot))
 >     where dot = circle 0.02 # lw 0 # fc blue
 >           [ps] = branchAnglePts # modelToScreen
+
+Label the angles and ratios represented in the diagram. The positions were
+determined experimentally, as were the scale factors.
+
+> legendLabels :: Diagram B R2
+> legendLabels =  position angles
+>              <> position ratios
+>            --  <> position (zip ps   (repeat (dot # fc blue)))       -- alignment helpers
+>     where dot  = circle 0.02 # lw 0
+>           ps     = [p2(0,1), p2(1,0), p2(1,1), p2(0,0)]
+>           angles = [ (p2(0.15,0.5), dPhi)
+>                    , (p2(0.7,1.618), dTheta)
+>                    , (p2(0.95,1.6), dTheta)]
+>           ratios = [ (p2(0.11,1.02),   dRatio 1)
+>                    , (p2(0.44,1),      dRatio 2)
+>                    , (p2(0.87,1.8),    dRatio 3)
+>                    , (p2(0.45, 1.545), dRatio 4)
+>                    , (p2(1.2, 1.5),    dRatio 4)]
+>           thetaSymbol = (toEnum 0X3B8) :: Char
+>           phiSymbol   = (toEnum 0X3D5) :: Char
+>           dTheta      = text [thetaSymbol] # italic # fontSize 1 # scale 0.15
+>           dPhi        = text [phiSymbol]   # italic # fontSize 1 # scale 0.15
+>           dRatio n    = text "r" # italic # fontSize 1 # scale 0.15
+>                                  # withSubscript (show n) 0.075
+
+For the purposes of this diagram, the following produced a perfect subscript.
+
+> withSubscript :: String -> Double -> Diagram B R2 -> Diagram B R2
+> withSubscript t s d = d <> topLeftText t # scale s
+
+**Drawing Functions**
 
 > drawPlanes :: [[P2]] -> Diagram B R2
 > drawPlanes = mconcat . map drawRect
