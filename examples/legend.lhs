@@ -144,7 +144,8 @@ Assemble the components of the diagram.
 
 > main = defaultMain (legend theta phi # centerXY # pad 1.2)
 
-> legend theta phi =  legendTrunkAngle
+> legend theta phi =  legendLabels
+>                  <> legendTrunkAngle
 >                  <> legendBranchAngles
 >               --   <> legendBranchAnglePoints
 >                  <> legendPlanes
@@ -191,6 +192,17 @@ for debugging.
 > legendBranchAnglePoints = position (zip ps (repeat dot))
 >     where dot = circle 0.02 # lw 0 # fc blue
 >           [ps] = branchAnglePts # modelToScreen
+
+> legendLabels :: Diagram B R2
+> legendLabels =  position (zip ps'  (repeat (dot # fc yellow)))     -- angles
+>              <> position (zip ps'' (repeat (dot # fc red)))        -- ratios
+>            --  <> position (zip ps   (repeat (dot # fc blue)))       -- alignment helpers
+>     where dot  = circle 0.02 # lw 0
+>           ps   = [p2(0,1), p2(1,0), p2(1,1), p2(0,0)]
+>           ps'  = [p2(0.15,0.5), p2(0.7,1.618), p2(0.95,1.6)]
+>           ps'' = [p2(0.11,1.02), p2(0.44,1), p2(0.87,1.8), p2(0.45, 1.545), p2(1.2, 1.5)]
+
+**Drawing Functions**
 
 > drawPlanes :: [[P2]] -> Diagram B R2
 > drawPlanes = mconcat . map drawRect
