@@ -27,9 +27,8 @@ branching point. It is converted to absolute coordinates and projected onto
 a plane for rendering.
 
 Example programs show how to draw an individual tree, and an array of them.
-There is also an example (under development) to draw a legend to describe
-the meaning of the parameters. To show what I'm looking for, I include a hand-drawn
-legend below, inspired by an image from _The Self-Made Tapestry_ by Philip Ball.
+There is also an example to draw a legend, shown below, to describe the meaning
+of the parameters, inspired by an image from _The Self-Made Tapestry_ by Philip Ball.
 
 A comparison of nine different trees:
 
@@ -43,9 +42,9 @@ The same tree with needles:
 
 ![Individual with needles](https://github.com/bobgru/conifer/blob/master/images/individual-needles.png?raw=true "Individual with needles")
 
-A hand-drawn legend describing six of the parameters:
+A legend describing six of the parameters:
 
-![Legend](https://github.com/bobgru/conifer/blob/master/images/hand-drawn-legend.png?raw=true "Legend")
+![Legend](https://github.com/bobgru/conifer/blob/master/images/legend.png?raw=true "Legend")
 
 While working on the computer-drawn legend, I did a study of drawing elliptical arcs that
 produced the following picture:
