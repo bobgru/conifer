@@ -24,15 +24,14 @@ as desired could be sampled from the original 3D circle projected onto 2D.
 
 **The Ellipse**
 
-An ellipse is a circle under an affine transformation. The `diagrams` package
-includes two functions to draw ellipses, given the ... or the eccentricity.
+An ellipse is a circle under an affine transformation.
 
 If all you have are five sample points, this library will provide the other pertinent
 information about the ellipse through those points.
 
 > data EllipseInfo a = EI {
 >       samplePoints :: Maybe [Point a]  -- there must be 5 points
->     , coefficients :: Maybe [Double]    -- the coefficients
+>     , coefficients :: Maybe [Double]
 >     , eigenValues  :: Maybe (Double, Double)
 >     , eigenVectors :: Maybe (a, a)
 >     , scaleXY      :: Maybe (Double, Double)

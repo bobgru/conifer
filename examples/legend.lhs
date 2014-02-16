@@ -20,16 +20,20 @@ parameters for the virtual conifer.
 Run the program with `dist/build/legend/legend -o legend.svg -w 400` 
 where `-o` sets the output filename, and `-w` sets the diagram width.
 
+The Euler angles can also be set from the command line with the following
+syntax: `... -a "Rad 0.85" -b "Rad -1" -c "Rad 0"`. For any that is omitted,
+the default value is used.
+
 **The Arbitrary Parameters**
 
-The Euler angles determine the viewing angle and were found by experimentation.
-Angles _a_, _b_, and _c_ are rotations about the _Z_ axis, new _X_ axis, then
-new _Z_ axis, respectively.
+The Euler angles determine the viewing angle. The default values were found by
+experimentation. Angles _a_, _b_, and _c_ are rotations about the _Z_ axis,
+new _X_ axis, then new _Z_ axis, respectively.
 
 > data EulerAngles = EA Rad Rad Rad deriving (Show, Eq)
 
 > instance Default EulerAngles where
->     def = EA 0.85 0.8 (-1)
+>     def = EA 1.315 (-1.39) 0
 
 **The Model-to-Screen Transformation**
 
@@ -148,9 +152,7 @@ Define enough points on a circle to draw an elliptical arc between the side bran
 >           r   = s * magnitude (branchPoint .-. pt1)
 >           s   = 0.3
 
-Add a few more points for intuition about the circle. It seems too flat. In fact,
-there seems to be a serious problem with the vertical scale--it's about twice what
-it should be.
+Add a few more points for intuition about the circle.
 
 > moreBranchAnglePts :: [[P3]]
 > moreBranchAnglePts = [[
@@ -258,8 +260,8 @@ determined experimentally, as were the scale factors.
 >                    , (p2(0.87,1.8),    dRatio 3)
 >                    , (p2(0.45, 1.545), dRatio 4)
 >                    , (p2(1.2, 1.5),    dRatio 4)]
->           thetaSymbol = (toEnum 0X3B8) :: Char
->           phiSymbol   = (toEnum 0X3D5) :: Char
+>           thetaSymbol = toEnum 0X3B8 :: Char
+>           phiSymbol   = toEnum 0X3D5 :: Char
 >           dTheta      = text [thetaSymbol] # italic # fontSize 1 # scale 0.15
 >           dPhi        = text [phiSymbol]   # italic # fontSize 1 # scale 0.15
 >           dRatio n    = text "r" # italic # fontSize 1 # scale 0.15

@@ -219,11 +219,11 @@ correct girths at each end.
 > drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
 
 > drawNeedles :: P2 -> P2 -> NeedleParams -> Diagram B R2
-> drawNeedles p0 p1 np = place ((scaleInv ns Diagrams.Prelude.unitX) # _scaleInvObj) p0
+> drawNeedles p0 p1 np = place (scaleInv ns Diagrams.Prelude.unitX # _scaleInvObj) p0
 >     where ns = needles numNeedles (magnitude v) nLength nAngle # rotate (-th)
->           th = (Diagrams.TwoD.Vector.angleBetween v Diagrams.Prelude.unitX) :: Rad
+>           th = Diagrams.TwoD.Vector.angleBetween v Diagrams.Prelude.unitX :: Rad
 >           v  = p1 .-. p0
->           numNeedles   = floor ((magnitude v) / nIncr) :: Int
+>           numNeedles   = floor (magnitude v / nIncr) :: Int
 >           nLength = needleLength np
 >           nAngle  = needleAngle np
 >           nIncr   = needleIncr np
@@ -379,7 +379,7 @@ branches to their full length. If they are leaves, they will be scaled back, as 
 >           t1     = rotationAbout origin nAxis angle
 >           zAxis  = (asSpherical . direction) unitZ
 >           nAxis  = (asSpherical . direction) (cross3 unitZ node)
->           angle  = 1/4 - ((asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node)
+>           angle  = 1/4 - (asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node
 
 >           bba    = tpBranchBranchAngle tp
 >           bblr   = tpBranchBranchLengthRatio tp

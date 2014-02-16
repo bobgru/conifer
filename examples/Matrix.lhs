@@ -106,7 +106,7 @@ and swap.
 > scaleRow a = map (*a)
 
 > combineRows :: Num a => a -> [a] -> [a] -> [a]
-> combineRows a r1 r2 = addRows (scaleRow a r1) r2
+> combineRows a r1 = addRows (scaleRow a r1)
 
 > swapRowsByIndex :: [a] -> Int -> Int -> [a]
 > swapRowsByIndex = swapListElem
@@ -114,7 +114,7 @@ and swap.
 Additional helper functions:
 
 > addRows :: Num a => [a] -> [a] -> [a]
-> addRows r1 r2 = zipWith (+) r1 r2
+> addRows = zipWith (+)
 
 > swapListElem :: [a] -> Int -> Int -> [a]
 > swapListElem []  _ _    = []
@@ -180,8 +180,8 @@ each equation to determine the next unknown until we know all values.
 
 > matrixEqual :: (Fractional a, Ord a) => Matrix a -> Matrix a -> Bool
 > matrixEqual (Matrix m) (Matrix n) =  length m == length n
->                                   && and (map (uncurry rowEqual) (zip m n))
+>                                   && and (zipWith rowEqual m n)
 
 > rowEqual :: (Fractional a, Ord a) => [a] -> [a] -> Bool
 > rowEqual xs ys =  length xs == length ys 
->                && and (map (\(x,y)->equivZero (x-y)) (zip xs ys))
+>                && all (\(x,y)->equivZero (x-y)) (zip xs ys)
