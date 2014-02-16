@@ -42,7 +42,7 @@ options, so import the necessary support.
 > import Safe (readMay)
 > import Data.Default.Class
 
-**The Arbitrary Parameters**
+**The Model-to-Screen Transformation**
 
 The Euler angles determine the viewing angle. The default values were found by
 experimentation. Angles _a_, _b_, and _c_ are rotations about the _Z_ axis,
@@ -52,8 +52,6 @@ new _X_ axis, then new _Z_ axis, respectively.
 
 > instance Default EulerAngles where
 >     def = EA 1.315 (-1.39) 0
-
-**The Model-to-Screen Transformation**
 
 Rotate the model according to the Euler angles and project onto the _XY_-plane.
 
