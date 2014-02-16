@@ -10,7 +10,7 @@ recurses over submatrices.
 
 > module Matrix
 > where
-> import Data.List(sort)
+> import Data.List(sort,foldl')
 
 > data Matrix a = Matrix [[a]] deriving Show
 
@@ -170,7 +170,7 @@ the know value of `e`. Continuing up the matrix, we substitute known values in
 each equation to determine the next unknown until we know all values.
 
 > solveOne :: Num a => [[a]] -> [a]
-> solveOne = reverse . foldl accumSolution [] . reverse
+> solveOne = reverse . foldl' accumSolution [] . reverse
 
 > accumSolution :: Num a => [a] -> [a] -> [a]
 > accumSolution sln r = sln ++ nextValue sln r

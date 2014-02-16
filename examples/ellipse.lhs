@@ -73,8 +73,8 @@ some sample points.
 >          # scaleY (2 / fromIntegral m)
 >          # centerXY
 >          # lw 0.02
->     where matrix = foldl (===) mempty (replicate m row)
->           row    = foldl (|||) mempty (replicate n cell)
+>     where matrix = foldr (===) mempty (replicate m row)
+>           row    = foldr (|||) mempty (replicate n cell)
 >           cell   = square 1
 
 **The Ellipse**
