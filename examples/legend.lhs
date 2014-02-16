@@ -4,14 +4,17 @@ A Legend for the Virtual Conifer
 This program draws a diagram explaining some of the tree
 parameters for the virtual conifer.
 
-> {-# LANGUAGE NoMonomorphismRestriction #-}
+> {-# LANGUAGE FlexibleInstances, NoMonomorphismRestriction, TypeFamilies #-}
 > module Main where
-> import Diagrams.Prelude as P
+> import Diagrams.Prelude as P hiding ((<>), option, value)
+> import Diagrams.Backend.CmdLine
 > import Diagrams.Backend.SVG.CmdLine
+> import Options.Applicative
 > import Diagrams.ThreeD.Types
 > import Diagrams.ThreeD.Transform as T3D
 > import Diagrams.ThreeD.Vector as T3V
 > import Data.Default.Class
+> import Safe (readMay)
 > import Conics(ellipseFromPoints, drawEllipticalArc)
 
 Run the program with `dist/build/legend/legend -o legend.svg -w 400` 
@@ -19,25 +22,32 @@ where `-o` sets the output filename, and `-w` sets the diagram width.
 
 **The Arbitrary Parameters**
 
-The values `theta` (radians counterclockwise rotation around unitZ) and `phi`
-(radians clockwise rotation about new unitX) determine the viewing angle and were
-found by experimentation. 
+The Euler angles determine the viewing angle and were found by experimentation.
+Angles _a_, _b_, and _c_ are rotations about the _Z_ axis, new _X_ axis, then
+new _Z_ axis, respectively.
 
-> theta = pi * (9.15/10) :: Rad
-> phi   = pi * (2.2/5) :: Rad
+> data EulerAngles = EA Rad Rad Rad deriving (Show, Eq)
+
+> instance Default EulerAngles where
+>     def = EA 0.85 0.8 (-1)
 
 **The Model-to-Screen Transformation**
 
-Rotate the model according to `theta` and `phi` and project onto the _XY_-plane.
+Rotate the model according to the Euler angles and project onto the _XY_-plane.
 
 > modelToScreen :: [[P3]] -> [[P2]]
-> modelToScreen = flatten . spin theta phi
+> modelToScreen = modelToScreen' def
+
+> modelToScreen' :: EulerAngles -> [[P3]] -> [[P2]]
+> modelToScreen' ea = flatten . spin ea
 
 Spin the model so that a projection of the new _XY_-plane is trivial.
 
-> spin :: Rad -> Rad -> [[P3]] -> [[P3]]
-> spin theta phi = map (map m) 
->     where m = rotateAboutX (phi - pi) . rotateAboutZ (pi/2 - theta)
+> spin :: EulerAngles -> [[P3]] -> [[P3]]
+> spin (EA a b c) = map (map m) 
+>     where m = rotateAboutZ c
+>             . rotateAboutX b
+>             . rotateAboutZ a
 
 > rotateAboutZ :: Rad -> P3 -> P3
 > rotateAboutZ theta = transform (aboutZ theta)
@@ -138,60 +148,98 @@ Define enough points on a circle to draw an elliptical arc between the side bran
 >           r   = s * magnitude (branchPoint .-. pt1)
 >           s   = 0.3
 
+Add a few more points for intuition about the circle. It seems too flat. In fact,
+there seems to be a serious problem with the vertical scale--it's about twice what
+it should be.
+
+> moreBranchAnglePts :: [[P3]]
+> moreBranchAnglePts = [[
+>                     branchPoint .+^ ((pt3 .-. branchPoint)    # normalized # scale r)
+>                  ,  branchPoint .+^ ((branchPoint .-. pt3)    # normalized # scale r)
+>                  ,  branchPoint .+^ ((origin .-. branchPoint) # normalized # scale r)
+>                  ]]
+>     where pt1     = p3 (baseLength, -baseWidth/2, branchTipHeight)
+>           (x,y,z) = unp3 branchPoint
+>           pt3     = p3 (x, r, z)
+>           r       = s * magnitude (branchPoint .-. pt1)
+>           s       = 0.3
+
 **The Main Program**
+
+Define instances of `Parseable` for `Rad` and `EulerAngles` so we can read the latter
+from the command line. This makes the process of tuning the viewing angle **much** faster.
+
+> instance Parseable Rad where
+>   parser = argument readMay mempty
+
+> instance Parseable EulerAngles where
+>   parser =   EA
+>          <$> option (long "eulerA" <> short 'a' <> value 1.315   <> help "Euler angle a")
+>          <*> option (long "eulerB" <> short 'b' <> value (-1.39) <> help "Euler angle b")
+>          <*> option (long "eulerC" <> short 'c' <> value 0       <> help "Euler angle c")
+
+> main = mainWith (\ea@(EA a b c) -> legend ea # centerXY # pad 1.2)
 
 Assemble the components of the diagram.
 
-> main = defaultMain (legend theta phi # centerXY # pad 1.2)
+> legend ea =  legendLabels
+>           <> legendTrunkAngle ea
+>           <> legendBranchAngles ea
+>         --  <> legendBranchAnglePoints ea
+>         --  <> legendMoreBranchAnglePoints ea
+>           <> legendPlanes ea
+>           <> legendTrunk ea
+>           <> legendBranches ea
 
-> legend theta phi =  legendLabels
->                  <> legendTrunkAngle
->                  <> legendBranchAngles
->               --   <> legendBranchAnglePoints
->                  <> legendPlanes
->                  <> legendTrunk
->                  <> legendBranches
+> legendTrunk :: EulerAngles -> Diagram B R2
+> legendTrunk ea = (drawTrunk girth0 girth1 . modelToScreen' ea) trunk
 
-> legendTrunk :: Diagram B R2
-> legendTrunk = (drawTrunk girth0 girth1 . modelToScreen) trunk
+> legendBranches :: EulerAngles -> Diagram B R2
+> legendBranches ea = (mconcat . map drawTip . modelToScreen' ea) branches
 
-> legendBranches :: Diagram B R2
-> legendBranches = (mconcat . map drawTip . modelToScreen) branches
-
-> legendPlanes :: Diagram B R2
-> legendPlanes = (drawPlanes . modelToScreen) planes
+> legendPlanes :: EulerAngles -> Diagram B R2
+> legendPlanes ea = (drawPlanes . modelToScreen' ea) planes
 
 **TODO** Fix the angle fudging; scale the original points rather than the arc
 
-> legendTrunkAngle :: Diagram B R2
-> legendTrunkAngle = drawEllipticalArc ei a1' a2' # scale r
+> legendTrunkAngle :: EulerAngles -> Diagram B R2
+> legendTrunkAngle ea = drawEllipticalArc ei a1' a2' # scale r
 >     where a1            = trunkBranchAngle
 >           a2            = P.direction P.unitY :: Rad
 >           a1'           = a1 + angleFudge
 >           a2'           = a2 + angleFudge
 >           r             = 0.5
->           [ps]           = modelToScreen trunkAnglePts
+>           [ps]           = modelToScreen' ea trunkAnglePts
 >           ei             = ellipseFromPoints ps
 >           angleFudge     = 0.15::Rad	-- compensate for rounding error in drawEllipticalArc
 
 **TODO** Fix the angle calculation
 
-> legendBranchAngles :: Diagram B R2
-> legendBranchAngles = drawEllipticalArc ei a1' a2'
+> legendBranchAngles :: EulerAngles -> Diagram B R2
+> legendBranchAngles ea = drawEllipticalArc ei a1' a2'
 >     where a1   = trunkBranchAngle
 >           a2   = P.direction P.unitY :: Rad
 >           a1'  = a1 + (0.57::Rad)
 >           a2'  = a2 + (0.29::Rad)
->           [ps] = modelToScreen branchAnglePts
+>           [ps] = modelToScreen' ea branchAnglePts
 >           ei   = ellipseFromPoints ps
 
 Show the points involved in drawing the elliptical arc between the branches,
 for debugging.
 
-> legendBranchAnglePoints :: Diagram B R2
-> legendBranchAnglePoints = position (zip ps (repeat dot))
+> legendBranchAnglePoints :: EulerAngles -> Diagram B R2
+> legendBranchAnglePoints ea = position (zip ps (repeat dot))
 >     where dot = circle 0.02 # lw 0 # fc blue
->           [ps] = branchAnglePts # modelToScreen
+>           [ps] = branchAnglePts # modelToScreen' ea
+
+Show more points on the circle around the branch point in the inclined plane.
+These points aren't used to calculate the elliptical arc, but are used to
+give confidence that the arc looks right, being part of the transformed circle.
+
+> legendMoreBranchAnglePoints :: EulerAngles -> Diagram B R2
+> legendMoreBranchAnglePoints ea = position (zip ps (repeat dot))
+>     where dot = circle 0.02 # lw 0 # fc yellow
+>           [ps] = moreBranchAnglePts # modelToScreen' ea
 
 Label the angles and ratios represented in the diagram. The positions were
 determined experimentally, as were the scale factors.

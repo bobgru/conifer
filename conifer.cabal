@@ -88,7 +88,8 @@ Executable comparison
   default-language:    Haskell2010
 
 Executable legend
-  Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class
+  Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class,
+                  optparse-applicative, safe
   Main-Is:        legend.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
