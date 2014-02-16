@@ -4,25 +4,43 @@ A Legend for the Virtual Conifer
 This program draws a diagram explaining some of the tree
 parameters for the virtual conifer.
 
-> {-# LANGUAGE FlexibleInstances, NoMonomorphismRestriction, TypeFamilies #-}
-> module Main where
-> import Diagrams.Prelude as P hiding ((<>), option, value)
-> import Diagrams.Backend.CmdLine
-> import Diagrams.Backend.SVG.CmdLine
-> import Options.Applicative
-> import Diagrams.ThreeD.Types
-> import Diagrams.ThreeD.Transform as T3D
-> import Diagrams.ThreeD.Vector as T3V
-> import Data.Default.Class
-> import Safe (readMay)
-> import Conics(ellipseFromPoints, drawEllipticalArc)
-
 Run the program with `dist/build/legend/legend -o legend.svg -w 400` 
 where `-o` sets the output filename, and `-w` sets the diagram width.
 
 The Euler angles can also be set from the command line with the following
 syntax: `... -a "Rad 0.85" -b "Rad -1" -c "Rad 0"`. For any that is omitted,
 the default value is used.
+
+The diagram is modeled in 3D. The planes are projected onto a display plane
+determined by the Euler angles. The arcs for angle parameters are drawn as
+elliptical arcs, determined by the ultimate transformation of points on a
+circle. The labels are overlaid at manually-determined positions.
+
+> {-# LANGUAGE FlexibleInstances, NoMonomorphismRestriction, TypeFamilies #-}
+> module Main where
+
+The diagrams prelude provides the 2D functions we need, but for 3D we need to
+import a few more, aliased because of the conflicting names. Some prelude
+functions are hidden because of conflicts with `Options.Applicative`.
+
+> import Diagrams.Prelude as P hiding ((<>), option, value)
+> import Diagrams.ThreeD.Types
+> import Diagrams.ThreeD.Transform as T3D
+> import Diagrams.ThreeD.Vector as T3V
+
+We need to draw arcs on transformed 3D planes, which we do by sampling points
+of a circle and calculating the ellipse that the viewer sees.
+
+> import Conics(ellipseFromPoints, drawEllipticalArc)
+
+We use the default command line processing from diagrams but add a few more
+options, so import the necessary support.
+
+> import Diagrams.Backend.CmdLine
+> import Diagrams.Backend.SVG.CmdLine
+> import Options.Applicative
+> import Safe (readMay)
+> import Data.Default.Class
 
 **The Arbitrary Parameters**
 
