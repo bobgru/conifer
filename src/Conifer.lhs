@@ -327,15 +327,16 @@ parent node, which is the natural way to use the diagrams package.
 > tree tp ap = runReader (tree' ap) tp
 
 > tree' :: AgeParams -> Reader TreeParams RTree3
-> tree' ap = do
+> tree' ap@(AgeParams age _ _) = do
 >     tp <- ask
->     let age     = apAge ap
->     let ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
->     let node    = r3 (0, 0, tpTrunkLengthIncrementPerYear tp * ageIncr)
+>     nb <- whorlsPerYear
+>     li <- tli 
+>     let ageIncr = 1 / fromIntegral nb
+>     let node    = r3 (0, 0, li * ageIncr)
 >     if age < ageIncr
 >         then return (Leaf (node, -1, -1, 0))
 >         else do
->              let g       = tpTrunkGirth tp
+>              g <- trunkGirth
 >              let girth0  = girth age g
 >              let girth1  = girth (age - ageIncr) g
 >              let apNext  = (adjustAge (-ageIncr) . advancePhase tp . advanceTrunkBranchAngle tp) ap
@@ -349,40 +350,37 @@ regular tree a little). A whorl is rotated by the whorl phase, which changes
 from one to the next.
 
 > whorl :: AgeParams -> Reader TreeParams [RTree3]
-> whorl ap = do
+> whorl ap@(AgeParams _ tbai phase) = do
 >     tp <- ask
 
->     let phase       = apWhorlPhase ap
->     let tbai        = apTrunkBranchAngleIndex ap
->     let tblr        = tpTrunkBranchLengthRatio tp
->     let numBranches = tpWhorlSize tp
->     let tbas        = tpTrunkBranchAngles tp
->     let n           = length tbas
+>     lr <- tblr
+>     nb <- whorlSize
+>     as <- tbas
 
->     let pt i = r3 (cos (theta i), sin (theta i), cos (phi i)) ^* tblr
->          where theta i = fromIntegral i * tau / fromIntegral numBranches + phase
->                phi i   = tbas !! ((i + tbai) `mod` n)
+>     let pt i = r3 (cos (theta i), sin (theta i), cos (phi i)) ^* lr
+>          where theta i = fromIntegral i * tau / fromIntegral nb + phase
+>                phi i   = as !! ((i + tbai) `mod` (length as))
 
->     mapM (\i -> branch ap (pt i)) [0 .. numBranches - 1]
+>     mapM (\i -> branch ap (pt i)) [0 .. nb - 1]
 
 A branch shoots forward a certain length, then ends or splits into three branches,
 going left, center, and right. If the branch is less than a year old, it's a shoot
 with a leaf. The length is scaled down by its age.
 
 > branch :: AgeParams -> R3 -> Reader TreeParams RTree3
-> branch ap node = do
+> branch ap@(AgeParams age _ _) node = do
 >     tp <- ask
->     let age = apAge ap
->     let ap' = subYear ap
 >     if age < 1
 >         then do
->             let leafNode = node # scale (age * tpBranchBranchLengthRatio tp)
+>             lr <- bblr
+>             let leafNode = node # scale (age * lr)
 >             return (Leaf (leafNode, -1, -1, 0))
 >         else do
->             nodes <- mapM (branch ap') (newBranchNodes tp node)
->             let g      = tpBranchGirth tp
->             let girth0 = girth (age - 1) g
->             return (Node (node, girth0, girth0, age) nodes)
+>             let ap' = subYear ap
+>             nodes   <- mapM (branch ap') (newBranchNodes tp node)
+>             g       <- branchGirth
+>             let g0  = girth (age - 1) g
+>             return (Node (node, g0, g0, age) nodes)
 
 Next year's subbranches continue straight, to the left and to the right. The straight
 subbranch grows at a possibly different rate from the side subbranches. Scale the
@@ -423,6 +421,22 @@ Helper functions for building the tree:
 >     where ws  = fromIntegral (tpWhorlSize tp)
 >           wpy = fromIntegral (tpWhorlsPerYear tp)
 >           p'  = p + tau / (ws * wpy * 2)
+
+Helpers to pull specific information from the immutable configuration:
+
+> fetch :: (TreeParams -> a) -> Reader TreeParams a
+> fetch f = do tp <- ask; return (f tp)
+
+> tli           = fetch tpTrunkLengthIncrementPerYear
+> tblr          = fetch tpTrunkBranchLengthRatio
+> tbas          = fetch tpTrunkBranchAngles
+> trunkGirth    = fetch tpTrunkGirth
+> whorlsPerYear = fetch tpWhorlsPerYear
+> whorlSize     = fetch tpWhorlSize
+> branchGirth   = fetch tpBranchGirth
+> bblr          = fetch tpBranchBranchLengthRatio
+> bblr2         = fetch tpBranchBranchLengthRatio2
+> bba           = fetch tpBranchBranchAngle
 
 Produce a width based on age and girth characteristic. Don't let the
 width go below the minimum.
