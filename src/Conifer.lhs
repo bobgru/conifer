@@ -17,7 +17,7 @@ a conifer.
 > {-# LANGUAGE NoMonomorphismRestriction #-}
 > module Conifer ( Tree
 >                , renderTree, renderTreeWithNeedles
->                , TreeParams(..), NeedleParams(..)
+>                , TreeParams(..), AgeParams(..), NeedleParams(..)
 >                , TreeInfo, RTree3
 >                , tree
 >                )
@@ -33,6 +33,7 @@ a conifer.
 > import Diagrams.TwoD.Vector (angleBetween)
 > import Data.Default.Class
 > import Data.Cross
+> import Control.Monad.Reader
 
 **The Tree Data Structure**
 
@@ -252,14 +253,12 @@ of this code. A more realistic approach would be to model random deviations from
 the regular growth.
 
 > data TreeParams = TreeParams {
->       tpAge                         :: Double
->     , tpTrunkLengthIncrementPerYear :: Double
+>       tpTrunkLengthIncrementPerYear :: Double
 >     , tpTrunkBranchLengthRatio      :: Double
 >     , tpTrunkBranchAngles           :: [Double]
 >     , tpTrunkGirth                  :: Double
 >     , tpWhorlsPerYear               :: Int
 >     , tpWhorlSize                   :: Int
->     , tpWhorlPhase                  :: Double
 >     , tpBranchGirth                 :: Double
 >     , tpBranchBranchLengthRatio     :: Double
 >     , tpBranchBranchLengthRatio2    :: Double
@@ -268,19 +267,26 @@ the regular growth.
 
 > instance Default TreeParams where
 >     def = TreeParams {
->       tpAge                         = 5
->     , tpTrunkLengthIncrementPerYear = 0.9
+>       tpTrunkLengthIncrementPerYear = 0.9
 >     , tpTrunkBranchLengthRatio      = 0.7
 >     , tpTrunkBranchAngles           = [tau / 6]
 >     , tpTrunkGirth                  = 1.0
 >     , tpWhorlsPerYear               = 1
 >     , tpWhorlSize                   = 6
->     , tpWhorlPhase                  = 0
 >     , tpBranchGirth                 = 1.0
 >     , tpBranchBranchLengthRatio     = 0.8
 >     , tpBranchBranchLengthRatio2    = 0.8
 >     , tpBranchBranchAngle           = tau / 6
 >     }
+
+The mutable state during a tree's growth consists of its age, the rotational phase of the next
+whorl, and the next trunk branch angle to use.
+
+> data AgeParams = AgeParams {
+>       apAge                         :: Double
+>     , apTrunkBranchAngleIndex       :: Int
+>     , apWhorlPhase                  :: Double
+>     } deriving (Show, Eq)
 
 The tree can be optionally decorated with needles, in which case the
 needles can be customized in various ways.
@@ -317,93 +323,120 @@ the pyramidal structure of a real conifer.
 We build a tree with each node in its own coordinate space relative to its 
 parent node, which is the natural way to use the diagrams package.
 
-> tree :: TreeParams -> RTree3
-> tree tp = if age < ageIncr
->               then Leaf (node, -1, -1, 0)
->               else Node (node, girth0, girth1, age) nodes
->     where age     = tpAge tp
->           g       = tpTrunkGirth tp
->           girth0  = girth age g
->           girth1  = girth (age - ageIncr) g
->           node    = r3 (0, 0, tpTrunkLengthIncrementPerYear tp * ageIncr)
->           nodes   = tree tpNext : whorl tpNext
->           tpNext  = (adjustAge (-ageIncr) . advancePhase . advanceTrunkBranchAngle) tp
->           ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
+> tree :: TreeParams -> AgeParams -> RTree3
+> tree tp ap = runReader (tree' ap) tp
+
+> tree' :: AgeParams -> Reader TreeParams RTree3
+> tree' ap@(AgeParams age _ _) = do
+>     tp <- ask
+>     nb <- whorlsPerYear
+>     li <- tli 
+>     let ageIncr = 1 / fromIntegral nb
+>     let node    = r3 (0, 0, li * ageIncr)
+>     if age < ageIncr
+>         then return (Leaf (node, -1, -1, 0))
+>         else do
+>              g <- trunkGirth
+>              let girth0  = girth age g
+>              let girth1  = girth (age - ageIncr) g
+>              let apNext  = (adjustAge (-ageIncr) . advancePhase tp . advanceTrunkBranchAngle tp) ap
+>              t  <- tree' apNext
+>              ws <- whorl apNext
+>              return (Node (node, girth0, girth1, age) (t : ws))
 
 A whorl is some number of branches, evenly spaced but at varying angle
 from the vertical (an acknowledged hack to "shake up" the otherwise rigidly
 regular tree a little). A whorl is rotated by the whorl phase, which changes
 from one to the next.
 
-> whorl :: TreeParams -> [RTree3]
-> whorl tp = [ branch tp (pt i) | i <- [0 .. numBranches - 1] ]
->     where pt i        = r3 ( tblr * cos (rotation i)
->                            , tblr * sin (rotation i)
->                            , tblr * cos (tba i))
->           tblr        = tpTrunkBranchLengthRatio tp
->           phase       = tpWhorlPhase tp
->           numBranches = tpWhorlSize tp
->           tbas        = tpTrunkBranchAngles tp
->           n           = length tbas
->           rotation i  = fromIntegral i * tau / fromIntegral numBranches + phase
->           tba i       = tbas !! (i `mod` n)
+> whorl :: AgeParams -> Reader TreeParams [RTree3]
+> whorl ap@(AgeParams _ tbai phase) = do
+>     tp <- ask
+
+>     lr <- tblr
+>     nb <- whorlSize
+>     as <- tbas
+
+>     let pt i = r3 (cos (theta i), sin (theta i), cos (phi i)) ^* lr
+>          where theta i = fromIntegral i * tau / fromIntegral nb + phase
+>                phi i   = as !! ((i + tbai) `mod` (length as))
+
+>     mapM (\i -> branch ap (pt i)) [0 .. nb - 1]
 
 A branch shoots forward a certain length, then ends or splits into three branches,
-going left, center, and right.
+going left, center, and right. If the branch is less than a year old, it's a shoot
+with a leaf. The length is scaled down by its age.
 
-> branch :: TreeParams -> R3 -> RTree3
-> branch tp node = if age < 1
->                      then Leaf (leafNode, -1, -1, 0)
->                      else Node (node, girth0, girth0, age) nodes
->     where age    = tpAge tp
->           g      = tpBranchGirth tp
->           girth0 = girth (age - 1) g
-
-If the branch is less than a year old, it's a shoot with a leaf. The length
-is scaled down by its age.
-
->           leafNode = node # scale (age * tpBranchBranchLengthRatio tp)
+> branch :: AgeParams -> R3 -> Reader TreeParams RTree3
+> branch ap@(AgeParams age _ _) node = do
+>     tp <- ask
+>     if age < 1
+>         then do
+>             lr <- bblr
+>             let leafNode = node # scale (age * lr)
+>             return (Leaf (leafNode, -1, -1, 0))
+>         else do
+>             let ap' = subYear ap
+>             nodes   <- mapM (branch ap') (newBranchNodes tp node)
+>             g       <- branchGirth
+>             let g0  = girth (age - 1) g
+>             return (Node (node, g0, g0, age) nodes)
 
 Next year's subbranches continue straight, to the left and to the right. The straight
 subbranch grows at a possibly different rate from the side subbranches. Scale the
-branches to their full length. If they are leaves, they will be scaled back, as above.
+branches to their full length. If they are leaves, they will be scaled back.
 
->           nodes  = map (branch tp') [l, c, r]
->           tp'    = subYear tp
+> newBranchNodes :: TreeParams -> R3 -> [R3]
+> newBranchNodes tp node = [l, c, r]
+>     where bba    = tpBranchBranchAngle tp
+>           bblr   = tpBranchBranchLengthRatio tp
+>           bblr2  = tpBranchBranchLengthRatio2 tp
+
+>           angle  = 1/4 - (asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node
+>           zAxis  = (asSpherical . direction) unitZ
+>           nAxis  = (asSpherical . direction) (cross3 unitZ node)
+>           t1     = rotationAbout origin nAxis angle
+>           t2 a   = conjugate t1 (rotationAbout origin zAxis a)
 
 >           l      = node # transform (t2   bba)  # scale bblr2
 >           r      = node # transform (t2 (-bba)) # scale bblr2
 >           c      = node                         # scale bblr
 
->           t2 a   = conjugate t1 (rotationAbout origin zAxis a)
->           t1     = rotationAbout origin nAxis angle
->           zAxis  = (asSpherical . direction) unitZ
->           nAxis  = (asSpherical . direction) (cross3 unitZ node)
->           angle  = 1/4 - (asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node
-
->           bba    = tpBranchBranchAngle tp
->           bblr   = tpBranchBranchLengthRatio tp
->           bblr2  = tpBranchBranchLengthRatio2 tp
-
 Helper functions for building the tree:
 
-> subYear :: TreeParams -> TreeParams
+> subYear :: AgeParams -> AgeParams
 > subYear = adjustAge (-1)
 
-> adjustAge :: Double -> TreeParams -> TreeParams
-> adjustAge da tp = tp { tpAge = tpAge tp + da }
+> adjustAge :: Double -> AgeParams -> AgeParams
+> adjustAge da (AgeParams a i p) = AgeParams a' i p 
+>     where a' = a + da
 
-> advancePhase :: TreeParams -> TreeParams
-> advancePhase tp = tp { tpWhorlPhase = wp + tau / (ws * wpy * 2) }
->     where wp  = tpWhorlPhase tp
->           ws  = fromIntegral (tpWhorlSize tp)
+> advanceTrunkBranchAngle :: TreeParams -> AgeParams -> AgeParams
+> advanceTrunkBranchAngle tp (AgeParams a i p) = AgeParams a i' p
+>     where ws  = fromIntegral (tpWhorlSize tp)
+>           i'  = (i + 1) `mod` ws
+
+> advancePhase :: TreeParams -> AgeParams -> AgeParams
+> advancePhase tp (AgeParams a i p) = AgeParams a i p'
+>     where ws  = fromIntegral (tpWhorlSize tp)
 >           wpy = fromIntegral (tpWhorlsPerYear tp)
+>           p'  = p + tau / (ws * wpy * 2)
 
-> advanceTrunkBranchAngle :: TreeParams -> TreeParams
-> advanceTrunkBranchAngle tp = tp { tpTrunkBranchAngles = shiftList (tpTrunkBranchAngles tp) }
+Helpers to pull specific information from the immutable configuration:
 
-> shiftList []       = []
-> shiftList (x : xs) = xs ++ [x]
+> fetch :: (TreeParams -> a) -> Reader TreeParams a
+> fetch f = do tp <- ask; return (f tp)
+
+> tli           = fetch tpTrunkLengthIncrementPerYear
+> tblr          = fetch tpTrunkBranchLengthRatio
+> tbas          = fetch tpTrunkBranchAngles
+> trunkGirth    = fetch tpTrunkGirth
+> whorlsPerYear = fetch tpWhorlsPerYear
+> whorlSize     = fetch tpWhorlSize
+> branchGirth   = fetch tpBranchGirth
+> bblr          = fetch tpBranchBranchLengthRatio
+> bblr2         = fetch tpBranchBranchLengthRatio2
+> bba           = fetch tpBranchBranchAngle
 
 Produce a width based on age and girth characteristic. Don't let the
 width go below the minimum.
