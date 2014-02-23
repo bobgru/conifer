@@ -352,60 +352,57 @@ from one to the next.
 > whorl ap = do
 >     tp <- ask
 
+>     let phase       = apWhorlPhase ap
+>     let tbai        = apTrunkBranchAngleIndex ap
 >     let tblr        = tpTrunkBranchLengthRatio tp
 >     let numBranches = tpWhorlSize tp
 >     let tbas        = tpTrunkBranchAngles tp
 >     let n           = length tbas
->     let tba i       = tbas !! ((i + tbai) `mod` n)
->     let rotation i  = fromIntegral i * tau / fromIntegral numBranches + phase
->     let pt i        = r3 ( tblr * cos (rotation i)
->                          , tblr * sin (rotation i)
->                          , tblr * cos (tba i))
+
+>     let pt i = r3 (cos (theta i), sin (theta i), cos (phi i)) ^* tblr
+>          where theta i = fromIntegral i * tau / fromIntegral numBranches + phase
+>                phi i   = tbas !! ((i + tbai) `mod` n)
 
 >     mapM (\i -> branch ap (pt i)) [0 .. numBranches - 1]
 
->     where phase     = apWhorlPhase ap
->           tbai      = apTrunkBranchAngleIndex ap
-
 A branch shoots forward a certain length, then ends or splits into three branches,
-going left, center, and right.
+going left, center, and right. If the branch is less than a year old, it's a shoot
+with a leaf. The length is scaled down by its age.
 
 > branch :: AgeParams -> R3 -> Reader TreeParams RTree3
 > branch ap node = do
 >     tp <- ask
->     let      g      = tpBranchGirth tp
->     let      girth0 = girth (age - 1) g
->     let      leafNode = node # scale (age * tpBranchBranchLengthRatio tp)
-
-If the branch is less than a year old, it's a shoot with a leaf. The length
-is scaled down by its age.
+>     let age = apAge ap
+>     let ap' = subYear ap
+>     if age < 1
+>         then do
+>             let leafNode = node # scale (age * tpBranchBranchLengthRatio tp)
+>             return (Leaf (leafNode, -1, -1, 0))
+>         else do
+>             nodes <- mapM (branch ap') (newBranchNodes tp node)
+>             let g      = tpBranchGirth tp
+>             let girth0 = girth (age - 1) g
+>             return (Node (node, girth0, girth0, age) nodes)
 
 Next year's subbranches continue straight, to the left and to the right. The straight
 subbranch grows at a possibly different rate from the side subbranches. Scale the
-branches to their full length. If they are leaves, they will be scaled back, as above.
+branches to their full length. If they are leaves, they will be scaled back.
 
->     if age < 1
->         then return (Leaf (leafNode, -1, -1, 0))
->         else do
->             let bba    = tpBranchBranchAngle tp
->             let bblr   = tpBranchBranchLengthRatio tp
->             let bblr2  = tpBranchBranchLengthRatio2 tp
+> newBranchNodes :: TreeParams -> R3 -> [R3]
+> newBranchNodes tp node = [l, c, r]
+>     where bba    = tpBranchBranchAngle tp
+>           bblr   = tpBranchBranchLengthRatio tp
+>           bblr2  = tpBranchBranchLengthRatio2 tp
 
->             let angle  = 1/4 - (asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node
->             let zAxis  = (asSpherical . direction) unitZ
->             let nAxis  = (asSpherical . direction) (cross3 unitZ node)
->             let t1     = rotationAbout origin nAxis angle
->             let t2 a   = conjugate t1 (rotationAbout origin zAxis a)
+>           angle  = 1/4 - (asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node
+>           zAxis  = (asSpherical . direction) unitZ
+>           nAxis  = (asSpherical . direction) (cross3 unitZ node)
+>           t1     = rotationAbout origin nAxis angle
+>           t2 a   = conjugate t1 (rotationAbout origin zAxis a)
 
->             let l      = node # transform (t2   bba)  # scale bblr2
->             let r      = node # transform (t2 (-bba)) # scale bblr2
->             let c      = node                         # scale bblr
-
->             nodes <- mapM (branch ap') [l, c, r]
->             return (Node (node, girth0, girth0, age) nodes)
-
->     where age    = apAge ap
->           ap'    = subYear ap
+>           l      = node # transform (t2   bba)  # scale bblr2
+>           r      = node # transform (t2 (-bba)) # scale bblr2
+>           c      = node                         # scale bblr
 
 Helper functions for building the tree:
 
@@ -413,17 +410,19 @@ Helper functions for building the tree:
 > subYear = adjustAge (-1)
 
 > adjustAge :: Double -> AgeParams -> AgeParams
-> adjustAge da ap = ap { apAge = apAge ap + da }
-
-> advancePhase :: TreeParams -> AgeParams -> AgeParams
-> advancePhase tp ap = ap { apWhorlPhase = wp + tau / (ws * wpy * 2) }
->     where wp  = apWhorlPhase ap
->           ws  = fromIntegral (tpWhorlSize tp)
->           wpy = fromIntegral (tpWhorlsPerYear tp)
+> adjustAge da (AgeParams a i p) = AgeParams a' i p 
+>     where a' = a + da
 
 > advanceTrunkBranchAngle :: TreeParams -> AgeParams -> AgeParams
-> advanceTrunkBranchAngle tp ap = ap { apTrunkBranchAngleIndex = (apTrunkBranchAngleIndex ap + 1) `mod` ws }
+> advanceTrunkBranchAngle tp (AgeParams a i p) = AgeParams a i' p
 >     where ws  = fromIntegral (tpWhorlSize tp)
+>           i'  = (i + 1) `mod` ws
+
+> advancePhase :: TreeParams -> AgeParams -> AgeParams
+> advancePhase tp (AgeParams a i p) = AgeParams a i p'
+>     where ws  = fromIntegral (tpWhorlSize tp)
+>           wpy = fromIntegral (tpWhorlsPerYear tp)
+>           p'  = p + tau / (ws * wpy * 2)
 
 Produce a width based on age and girth characteristic. Don't let the
 width go below the minimum.
