@@ -57,7 +57,8 @@ An arrangement specialized for all our samples, which are 3 _x_ 3.
 
 Draw a tree with the given parameters but overridden with the specified age and whorl phase.
 
-> treeAtAge tp a p = tree tp (AgeParams a 0 p) # renderTree
+> treeAtAge tp a p = tree tp ap # fst # renderTree
+>     where ap = def { apAge = a, apWhorlPhase = p }
 
 **Comparisons**
 

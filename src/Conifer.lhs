@@ -14,7 +14,7 @@ pipeline to produce a drawing of a tree.
 The final part is the specification and growth of the kind of tree we want,
 a conifer.
 
-> {-# LANGUAGE NoMonomorphismRestriction #-}
+> {-# LANGUAGE NoMonomorphismRestriction, GeneralizedNewtypeDeriving #-}
 > module Conifer ( Tree
 >                , renderTree, renderTreeWithNeedles
 >                , TreeParams(..), AgeParams(..), NeedleParams(..)
@@ -34,6 +34,9 @@ a conifer.
 > import Data.Default.Class
 > import Data.Cross
 > import Control.Monad.Reader
+> import Control.Monad.State
+> import Control.Monad.Identity
+> import System.Random
 
 **The Tree Data Structure**
 
@@ -282,11 +285,29 @@ the regular growth.
 The mutable state during a tree's growth consists of its age, the rotational phase of the next
 whorl, and the next trunk branch angle to use.
 
+**TODO** Putting the age in mutable state as opposed to passing as a function argument was
+the worst decision. We now have a bunch of ugly imperative code that saves and restores
+state around recursive calls that were formerly clean and simple. We'll keep the mutable
+state for the random number generators, which never need to be restored, and change age, etc.,
+back to arguments.
+
 > data AgeParams = AgeParams {
 >       apAge                         :: Double
 >     , apTrunkBranchAngleIndex       :: Int
 >     , apWhorlPhase                  :: Double
->     } deriving (Show, Eq)
+>     , apSeed                        :: Int
+>     , apRndGen                      :: StdGen
+>     } deriving (Show, Read)
+
+> instance Default AgeParams where
+>     def = AgeParams {
+>       apAge = 1
+>     , apTrunkBranchAngleIndex = 0
+>     , apWhorlPhase = 0
+>     , apSeed = s
+>     , apRndGen = mkStdGen s
+>     }
+>         where s = 0
 
 The tree can be optionally decorated with needles, in which case the
 needles can be customized in various ways.
@@ -303,6 +324,17 @@ needles can be customized in various ways.
 >     , needleAngle  = tau / 10
 >     , needleIncr   = 0.05
 >     }
+
+We'll give ourselves a new type for the monad stack to come.
+
+> newtype TreeBuilder a = TB { runTB :: ReaderT TreeParams (StateT AgeParams Identity) a }
+>     deriving (Monad, MonadReader TreeParams, MonadState AgeParams)
+
+> runTreeBuilder :: TreeBuilder a -> TreeParams -> AgeParams -> (a, AgeParams)
+> runTreeBuilder tb tp ap =
+>     let rndGen = mkStdGen (apSeed ap)
+>         state  = ap { apRndGen = rndGen }
+>     in runIdentity (runStateT (runReaderT (runTB tb) tp) state)
 
 **Growing a Conifer**
 
@@ -323,12 +355,13 @@ the pyramidal structure of a real conifer.
 We build a tree with each node in its own coordinate space relative to its 
 parent node, which is the natural way to use the diagrams package.
 
-> tree :: TreeParams -> AgeParams -> RTree3
-> tree tp ap = runReader (tree' ap) tp
+> tree :: TreeParams -> AgeParams -> (RTree3, AgeParams)
+> tree tp ap = runTreeBuilder tree' tp ap
 
-> tree' :: AgeParams -> Reader TreeParams RTree3
-> tree' ap@(AgeParams age _ _) = do
->     tp <- ask
+> tree' :: TreeBuilder RTree3
+> tree' = do
+>     ap <- get
+>     let age = apAge ap
 >     nb <- whorlsPerYear
 >     li <- tli 
 >     let ageIncr = 1 / fromIntegral nb
@@ -337,11 +370,29 @@ parent node, which is the natural way to use the diagrams package.
 >         then return (Leaf (node, -1, -1, 0))
 >         else do
 >              g <- trunkGirth
->              let girth0  = girth age g
->              let girth1  = girth (age - ageIncr) g
->              let apNext  = (adjustAge (-ageIncr) . advancePhase tp . advanceTrunkBranchAngle tp) ap
->              t  <- tree' apNext
->              ws <- whorl apNext
+>              let girth0 = girth age g
+>              let girth1 = girth (age - ageIncr) g
+
+Adjust some parameters for the next level of trunk. We want to continue with the same
+values for the whorls, but let other state be modified. For example, the random number
+generator should not be reset.
+
+>              tp <- ask
+>              let apNext = (adjustAge (-ageIncr) . advancePhase tp . advanceTrunkBranchAngle tp) ap
+>              let age'   = apAge apNext
+>              let index' = apTrunkBranchAngleIndex apNext
+>              let phase' = apWhorlPhase apNext
+>              put apNext
+>              t  <- tree'
+
+Restore the parts of the state that pertain to the current context.
+
+>              let apNext' = apNext {
+>                                     apAge = age'
+>                                   , apTrunkBranchAngleIndex = index'
+>                                   , apWhorlPhase = phase' }
+>              put apNext'
+>              ws <- whorl
 >              return (Node (node, girth0, girth1, age) (t : ws))
 
 A whorl is some number of branches, evenly spaced but at varying angle
@@ -349,9 +400,11 @@ from the vertical (an acknowledged hack to "shake up" the otherwise rigidly
 regular tree a little). A whorl is rotated by the whorl phase, which changes
 from one to the next.
 
-> whorl :: AgeParams -> Reader TreeParams [RTree3]
-> whorl ap@(AgeParams _ tbai phase) = do
->     tp <- ask
+> whorl :: TreeBuilder [RTree3]
+> whorl = do
+>     ap <- get
+>     let tbai  = apTrunkBranchAngleIndex ap
+>     let phase = apWhorlPhase ap
 
 >     lr <- tblr
 >     nb <- whorlSize
@@ -361,23 +414,38 @@ from one to the next.
 >          where theta i = fromIntegral i * tau / fromIntegral nb + phase
 >                phi i   = as !! ((i + tbai) `mod` (length as))
 
->     mapM (\i -> branch ap (pt i)) [0 .. nb - 1]
+>     age <- getAge
+>     t <- mapM (\i -> do putAge age >> branch (pt i)) [0 .. nb - 1]
+>     putAge age
+>     return t
 
 A branch shoots forward a certain length, then ends or splits into three branches,
 going left, center, and right. If the branch is less than a year old, it's a shoot
 with a leaf. The length is scaled down by its age.
 
-> branch :: AgeParams -> R3 -> Reader TreeParams RTree3
-> branch ap@(AgeParams age _ _) node = do
->     tp <- ask
+> branch :: R3 -> TreeBuilder RTree3
+> branch node = do
+>     ap <- get
+>     let age = apAge ap
 >     if age < 1
 >         then do
 >             lr <- bblr
 >             let leafNode = node # scale (age * lr)
 >             return (Leaf (leafNode, -1, -1, 0))
 >         else do
->             let ap' = subYear ap
->             nodes   <- mapM (branch ap') (newBranchNodes tp node)
+
+Set the age for the next branch level. Recursive calls to branch change the age
+to 0, so restore it afterwards.
+
+>             let age' = age - 1
+>             tp      <- ask
+>             let aux v = do putAge age' >> branch v
+>             nodes   <- mapM aux (newBranchNodes tp node)
+
+Restore age so the next branch in a whorl grows properly. This is the worst of 
+imperative programming! **TODO** Move age out of mutable state and back to an argument
+
+>             putAge age'
 >             g       <- branchGirth
 >             let g0  = girth (age - 1) g
 >             return (Node (node, g0, g0, age) nodes)
@@ -408,23 +476,23 @@ Helper functions for building the tree:
 > subYear = adjustAge (-1)
 
 > adjustAge :: Double -> AgeParams -> AgeParams
-> adjustAge da (AgeParams a i p) = AgeParams a' i p 
->     where a' = a + da
+> adjustAge da ap = ap { apAge = a' }
+>     where a' = apAge ap + da
 
 > advanceTrunkBranchAngle :: TreeParams -> AgeParams -> AgeParams
-> advanceTrunkBranchAngle tp (AgeParams a i p) = AgeParams a i' p
+> advanceTrunkBranchAngle tp ap = ap { apTrunkBranchAngleIndex = i' }
 >     where ws  = fromIntegral (tpWhorlSize tp)
->           i'  = (i + 1) `mod` ws
+>           i'  = (apTrunkBranchAngleIndex ap + 1) `mod` ws
 
 > advancePhase :: TreeParams -> AgeParams -> AgeParams
-> advancePhase tp (AgeParams a i p) = AgeParams a i p'
+> advancePhase tp ap = ap { apWhorlPhase = p' }
 >     where ws  = fromIntegral (tpWhorlSize tp)
 >           wpy = fromIntegral (tpWhorlsPerYear tp)
->           p'  = p + tau / (ws * wpy * 2)
+>           p'  = apWhorlPhase ap + tau / (ws * wpy * 2)
 
 Helpers to pull specific information from the immutable configuration:
 
-> fetch :: (TreeParams -> a) -> Reader TreeParams a
+> fetch :: (TreeParams -> a) -> TreeBuilder a
 > fetch f = do tp <- ask; return (f tp)
 
 > tli           = fetch tpTrunkLengthIncrementPerYear
@@ -437,6 +505,14 @@ Helpers to pull specific information from the immutable configuration:
 > bblr          = fetch tpBranchBranchLengthRatio
 > bblr2         = fetch tpBranchBranchLengthRatio2
 > bba           = fetch tpBranchBranchAngle
+
+Helpers to get or set values from mutable state:
+
+> getter :: (AgeParams -> a) -> TreeBuilder a
+> getter f = do ap <- get; return (f ap)
+
+> getAge   = getter apAge
+> putAge v = do ap <- get; put (ap {apAge = v}); return ()
 
 Produce a width based on age and girth characteristic. Don't let the
 width go below the minimum.
