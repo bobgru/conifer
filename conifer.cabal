@@ -62,8 +62,8 @@ library
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.5
-                     , diagrams-lib >=1.0
-                     , diagrams-svg >=1.0
+                     , diagrams-lib ==1.0
+                     , diagrams-svg ==1.0
                      , data-default-class >=0.0
                      , vector-space
                      , mtl
