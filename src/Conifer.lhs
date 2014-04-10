@@ -365,7 +365,8 @@ from one to the next.
 
 A branch shoots forward a certain length, then ends or splits into three branches,
 going left, center, and right. If the branch is less than a year old, it's a shoot
-with a leaf. The length is scaled down by its age.
+with a leaf. The length is scaled down by its age. Scaling by 0 is disallowed by
+diagrams, so enforce a minimum scale of 0.1.
 
 > branch :: AgeParams -> R3 -> Reader TreeParams RTree3
 > branch ap@(AgeParams age _ _) node = do
@@ -373,7 +374,8 @@ with a leaf. The length is scaled down by its age.
 >     if age < 1
 >         then do
 >             lr <- bblr
->             let leafNode = node # scale (age * lr)
+>             let s = max (age * lr) 0.1
+>             let leafNode = node # scale s
 >             return (Leaf (leafNode, -1, -1, 0))
 >         else do
 >             let ap' = subYear ap
