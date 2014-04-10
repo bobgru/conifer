@@ -76,7 +76,8 @@ library
   
 Executable individual
   Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class
-                , conifer
+                , conifer, text, aeson, bytestring, unordered-containers
+                , vector, attoparsec, optparse-applicative
   Main-Is:        individual.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010

@@ -1,0 +1,13 @@
+{ 
+  "age": 5
+, "needles": false
+, "udTrunkLengthIncrementPerYear": 1.4
+, "udTrunkBranchLengthRatio": 0.6
+, "udTrunkBranchAngles": [ 0.698, 0.898, 1.31 , 0.967 ]
+, "udTrunkGirth": 5.0
+, "udWhorlsPerYear": 4
+, "udWhorlSize": 5
+, "udBranchGirth": 1.0
+, "udBranchBranchLengthRatio": 1.0
+, "udBranchBranchLengthRatio2": 1.0
+}
