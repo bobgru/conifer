@@ -107,6 +107,6 @@ Test-Suite matrix-unit-tests
   Main-Is:        matrixTests.lhs
   Buildable:      True
   Build-Depends:  base -any, QuickCheck -any, conifer, HUnit
-  hs-source-dirs: tests/unit-tests
+  hs-source-dirs: test/unit-tests
   default-language:    Haskell2010
 
