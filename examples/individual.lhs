@@ -10,6 +10,7 @@ It can be driven from standard input by specifying `-u` on the command line.
 > #-}
 > module Main where
 > import Conifer
+> import Conifer.Types
 > import Control.Monad hiding (ap)
 > import Data.Aeson
 > import qualified Data.Aeson.Types as DAT
