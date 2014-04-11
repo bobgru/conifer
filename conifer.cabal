@@ -106,7 +106,7 @@ Test-Suite matrix-unit-tests
   Type:           exitcode-stdio-1.0
   Main-Is:        matrixTests.lhs
   Buildable:      True
-  Build-Depends:  base -any, QuickCheck -any, conifer
+  Build-Depends:  base -any, QuickCheck -any, conifer, HUnit
   hs-source-dirs: tests/unit-tests
   default-language:    Haskell2010
 

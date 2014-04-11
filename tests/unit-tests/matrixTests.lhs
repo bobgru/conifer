@@ -1,257 +1,242 @@
 > module Main where
+> import Control.Monad (when)
 > import Matrix
-> import TestFramework
-> import System.Exit (exitFailure, exitSuccess)
+> import System.Exit (exitFailure)
+> import Test.HUnit
 
-> main = do
->     let (details, summary) = runTests pureTests
->     putStrLn details
->     (ioDetails, ioSummary) <- runTestsIO ioTests
->     putStrLn ioDetails
+> main = do 
+>     Counts c t e f <- runTestTT tests
+>     when (e > 0 || f > 0) exitFailure
+> 
 
->     if not (summary && ioSummary) then exitFailure else exitSuccess
+> tests = TestList [
+>       TestLabel "nextValue_lastRowEmptySln"        $ TestCase  nextValue_lastRowEmptySln
+>     , TestLabel "nextValue_lastRowNonEmptySln"     $ TestCase  nextValue_lastRowNonEmptySln
 
-> pureTests = [
->       ("nextValue_lastRowEmptySln",        nextValue_lastRowEmptySln)
->     , ("nextValue_lastRowNonEmptySln",     nextValue_lastRowNonEmptySln)
+>     , TestLabel "accumSolution_lastRowEmptySln"    $ TestCase accumSolution_lastRowEmptySln
+>     , TestLabel "accumSolution_lastRowNonEmptySln" $ TestCase accumSolution_lastRowNonEmptySln
 
->     , ("accumSolution_lastRowEmptySln",    accumSolution_lastRowEmptySln)
->     , ("accumSolution_lastRowNonEmptySln", accumSolution_lastRowNonEmptySln)
+>     , TestLabel "solveOne_identity1"    $ TestCase solveOne_identity1
+>     , TestLabel "solveOne_identity2"    $ TestCase solveOne_identity2
+>     , TestLabel "solveOne_identity3"    $ TestCase solveOne_identity3
+>     , TestLabel "solveOne_nonIdentity2" $ TestCase solveOne_nonIdentity2
 
->     , ("solveOne_identity1", solveOne_identity1)
->     , ("solveOne_identity2", solveOne_identity2)
->     , ("solveOne_identity3", solveOne_identity3)
->     , ("solveOne_nonIdentity2", solveOne_nonIdentity2)
+>     , TestLabel "solve'_Many1" $ TestCase solve'_Many1
+>     , TestLabel "solve'_Many2" $ TestCase solve'_Many2
+>     , TestLabel "solve'_None1" $ TestCase solve'_None1
+>     , TestLabel "solve'_None2" $ TestCase solve'_None2
+>     , TestLabel "solve'_OneNonIdentity3" $ TestCase solve'_OneNonIdentity3
 
->     , ("solve'_Many1", solve'_Many1)
->     , ("solve'_Many2", solve'_Many2)
->     , ("solve'_None1", solve'_None1)
->     , ("solve'_None2", solve'_None2)
->     , ("solve'_OneNonIdentity3", solve'_OneNonIdentity3)
+>     , TestLabel "slnEqMany"      $ TestCase slnEqMany
+>     , TestLabel "slnEqNone"      $ TestCase slnEqNone
+>     , TestLabel "slnNeqManyNone" $ TestCase slnNeqManyNone
+>     , TestLabel "slnNeqNoneMany" $ TestCase slnNeqNoneMany
+>     , TestLabel "slnEqOneEmpty"  $ TestCase slnEqOneEmpty
+>     , TestLabel "slnEqOne1"      $ TestCase slnEqOne1
+>     , TestLabel "slnEqOne2"      $ TestCase slnEqOne2
+>     , TestLabel "slnEqOne3"      $ TestCase slnEqOne3
+>     , TestLabel "slnNeqOneEmpty" $ TestCase slnNeqOneEmpty
+>     , TestLabel "slnNeqOne1"     $ TestCase slnNeqOne1
+>     , TestLabel "slnNeqOne2"     $ TestCase slnNeqOne2
+>     , TestLabel "slnNeqOne3"     $ TestCase slnNeqOne3
 
->     , ("slnEqMany", slnEqMany)
->     , ("slnEqNone", slnEqNone)
->     , ("slnNeqManyNone", slnNeqManyNone)
->     , ("slnNeqNoneMany", slnNeqNoneMany)
->     , ("slnEqOneEmpty", slnEqOneEmpty)
->     , ("slnEqOne1", slnEqOne1)
->     , ("slnEqOne2", slnEqOne2)
->     , ("slnEqOne3", slnEqOne3)
->     , ("slnNeqOneEmpty", slnNeqOneEmpty)
->     , ("slnNeqOne1", slnNeqOne1)
->     , ("slnNeqOne2", slnNeqOne2)
->     , ("slnNeqOne3", slnNeqOne3)
+>     , TestLabel "divList1" $ TestCase divList1
+>     , TestLabel "divList2" $ TestCase divList2
+>     , TestLabel "divList3" $ TestCase divList3
+>     , TestLabel "divList4" $ TestCase divList4
+>     , TestLabel "divList5" $ TestCase divList5
+>     , TestLabel "divList6" $ TestCase divList6
+>     , TestLabel "divList7" $ TestCase divList7
 
->     , ("divList1", divList1)
->     , ("divList2", divList2)
->     , ("divList3", divList3)
->     , ("divList4", divList4)
->     , ("divList5", divList5)
->     , ("divList6", divList6)
->     , ("divList7", divList7)
+>     , TestLabel "swapListElem2" $ TestCase swapListElem2
+>     , TestLabel "swapListElem3" $ TestCase swapListElem3
+>     , TestLabel "swapListElem4" $ TestCase swapListElem4
+>     , TestLabel "swapListElem5" $ TestCase swapListElem5
+>     , TestLabel "swapListElem6" $ TestCase swapListElem6
+>     , TestLabel "swapListElem7" $ TestCase swapListElem7
+>     , TestLabel "swapListElem8" $ TestCase swapListElem8
 
->     , ("swapListElem2", swapListElem2)
->     , ("swapListElem3", swapListElem3)
->     , ("swapListElem4", swapListElem4)
->     , ("swapListElem5", swapListElem5)
->     , ("swapListElem6", swapListElem6)
->     , ("swapListElem7", swapListElem7)
->     , ("swapListElem8", swapListElem8)
+>     , TestLabel "addRows1" $ TestCase addRows1
+>     , TestLabel "addRows2" $ TestCase addRows2
+>     , TestLabel "addRows3" $ TestCase addRows3
 
->     , ("addRows1", addRows1)
->     , ("addRows2", addRows2)
->     , ("addRows3", addRows3)
+>     , TestLabel "combineRows1" $ TestCase combineRows1
+>     , TestLabel "combineRows2" $ TestCase combineRows2
+>     , TestLabel "combineRows3" $ TestCase combineRows3
 
->     , ("combineRows1", combineRows1)
->     , ("combineRows2", combineRows2)
->     , ("combineRows3", combineRows3)
+>     , TestLabel "equivZero1" $ TestCase equivZero1
+>     , TestLabel "equivZero2" $ TestCase equivZero2
 
->     , ("equivZero1", equivZero1)
->     , ("equivZero2", equivZero2)
+>     , TestLabel "normalizeRow1" $ TestCase normalizeRow1
+>     , TestLabel "normalizeRow2" $ TestCase normalizeRow2
+>     , TestLabel "normalizeRow3" $ TestCase normalizeRow3
+>     , TestLabel "normalizeRow4" $ TestCase normalizeRow4
 
->     , ("normalizeRow1", normalizeRow1)
->     , ("normalizeRow2", normalizeRow2)
->     , ("normalizeRow3", normalizeRow3)
->     , ("normalizeRow4", normalizeRow4)
+>     , TestLabel "reduceRowBy1" $ TestCase reduceRowBy1
 
->     , ("reduceRowBy1", reduceRowBy1)
+>     , TestLabel "rowEqual1" $ TestCase rowEqual1
+>     , TestLabel "rowEqual2" $ TestCase rowEqual2
+>     , TestLabel "rowEqual3" $ TestCase rowEqual3
+>     , TestLabel "rowEqual4" $ TestCase rowEqual4
 
->     , ("rowEqual1", rowEqual1)
->     , ("rowEqual2", rowEqual2)
->     , ("rowEqual3", rowEqual3)
->     , ("rowEqual4", rowEqual4)
+>     , TestLabel "matrixEqual1" $ TestCase matrixEqual1
+>     , TestLabel "matrixEqual2" $ TestCase matrixEqual2
+>     , TestLabel "matrixEqual3" $ TestCase matrixEqual3
+>     , TestLabel "matrixEqual4" $ TestCase matrixEqual4
+>     , TestLabel "matrixEqual5" $ TestCase matrixEqual5
 
->     , ("matrixEqual1", matrixEqual1)
->     , ("matrixEqual2", matrixEqual2)
->     , ("matrixEqual3", matrixEqual3)
->     , ("matrixEqual4", matrixEqual4)
->     , ("matrixEqual5", matrixEqual5)
+>     , TestLabel "pivotMatrix1" $ TestCase pivotMatrix1
+>     , TestLabel "pivotMatrix2" $ TestCase pivotMatrix2
+>     , TestLabel "pivotMatrix3" $ TestCase pivotMatrix3
+>     , TestLabel "pivotMatrix4" $ TestCase pivotMatrix4
+>     , TestLabel "pivotMatrix5" $ TestCase pivotMatrix5
+>     , TestLabel "pivotMatrix6" $ TestCase pivotMatrix6
 
->     , ("pivotMatrix1", pivotMatrix1)
->     , ("pivotMatrix2", pivotMatrix2)
->     , ("pivotMatrix3", pivotMatrix3)
->     , ("pivotMatrix4", pivotMatrix4)
->     , ("pivotMatrix5", pivotMatrix5)
->     , ("pivotMatrix6", pivotMatrix6)
+>     , TestLabel "reduceLeftCol1" $ TestCase reduceLeftCol1
+>     , TestLabel "reduceLeftCol2" $ TestCase reduceLeftCol2
+>     , TestLabel "reduceLeftCol3" $ TestCase reduceLeftCol3
 
->     , ("reduceLeftCol1", reduceLeftCol1)
->     , ("reduceLeftCol2", reduceLeftCol2)
->     , ("reduceLeftCol3", reduceLeftCol3)
-
->     , ("gaussianReduce1", gaussianReduce1)
->     , ("gaussianReduce2", gaussianReduce2)
->     , ("gaussianReduce3", gaussianReduce3)
-
->     -- END OF TESTS (command-U to add a test from selected text)
+>     , TestLabel "gaussianReduce1" $ TestCase gaussianReduce1
+>     , TestLabel "gaussianReduce2" $ TestCase gaussianReduce2
+>     , TestLabel "gaussianReduce3" $ TestCase gaussianReduce3
 >   ]
 
-> ioTests = []
+> nextValue_lastRowEmptySln    = (nextValue [] [2]) `compare` [2] @?= EQ
+> nextValue_lastRowNonEmptySln = (nextValue [3] [4,2]) `compare` [-10] @?= EQ
 
-> {-  seqs_test_1 = assertAreEqual expected (seqs 20 2 [a,b,c,d])
->     where
->         expected = [[ b, c ]]
->         a = mkEx 100  90 0 True
->         b = mkEx 120 110 1 True
->         c = mkEx 100  90 2 False
->         d = mkEx 140 130 3 False -}
+> accumSolution_lastRowEmptySln    = (accumSolution [] [2]) `compare` [2] @?= EQ
+> accumSolution_lastRowNonEmptySln = (accumSolution [3] [4,2]) `compare` [3,-10] @?= EQ
 
-> nextValue_lastRowEmptySln    = assertAreEqual [2] (nextValue [] [2])
-> nextValue_lastRowNonEmptySln = assertAreEqual [-10] (nextValue [3] [4,2])
+> solveOne_identity1 = (solveOne [[1,1]]) `compare` [1] @?= EQ
+> solveOne_identity2 = (solveOne [[1,0,2],[0,1,1]]) `compare` [2,1] @?= EQ
+> solveOne_identity3 = (solveOne [[1,0,0,3],[0,1,0,2],[0,0,1,1]]) `compare` [3,2,1] @?= EQ
+> solveOne_nonIdentity2 = (solveOne [[1,4,2],[0,1,1]]) `compare` [-2,1] @?= EQ
+> solveOne_nonIdentity3 = (solveOne [[1,2,1,3],[0,1,4,2],[0,0,1,1]]) `compare` [6,-2,1] @?= EQ
 
-> accumSolution_lastRowEmptySln = assertAreEqual [2] (accumSolution [] [2])
-> accumSolution_lastRowNonEmptySln = assertAreEqual [3,-10] (accumSolution [3] [4,2])
-
-> solveOne_identity1 = assertAreEqual [1] (solveOne [[1,1]])
-> solveOne_identity2 = assertAreEqual [2,1] (solveOne [[1,0,2],[0,1,1]])
-> solveOne_identity3 = assertAreEqual [3,2,1] (solveOne [[1,0,0,3],[0,1,0,2],[0,0,1,1]])
-> solveOne_nonIdentity2 = assertAreEqual [-2,1] (solveOne [[1,4,2],[0,1,1]])
-> solveOne_nonIdentity3 = assertAreEqual [6,-2,1] (solveOne [[1,2,1,3],[0,1,4,2],[0,0,1,1]])
-
-> solve'_Many1 = assertAreEqual Many (solve' (Matrix [[0,0]]))
-> solve'_Many2 = assertAreEqual Many (solve' (Matrix [[1,2,3],[0,0,0]]))
-> solve'_None1 = assertAreEqual None (solve' (Matrix [[0,1]]))
-> solve'_None2 = assertAreEqual None (solve' (Matrix [[1,2,3],[0,0,1]]))
-> solve'_OneNonIdentity3 = assertAreEqual (One [6,-2,1])
->                                         (solve' (Matrix [[1,2,1,3],[0,1,4,2],[0,0,1,1]]))
+> solve'_Many1 = (solve' (Matrix [[0,0]]))           @?= Many
+> solve'_Many2 = (solve' (Matrix [[1,2,3],[0,0,0]])) @?= Many
+> solve'_None1 = (solve' (Matrix [[0,1]]))           @?= None
+> solve'_None2 = (solve' (Matrix [[1,2,3],[0,0,1]])) @?= None
+> solve'_OneNonIdentity3 = (solve' (Matrix [[1,2,1,3],[0,1,4,2],[0,0,1,1]])) @?= (One [6,-2,1])
 
 Eq instance of Solution
 
-> slnEqMany   = assertAreEqual True  (Many == Many)
-> slnEqNone   = assertAreEqual True  (None == None)
-> slnNeqManyNone = assertAreEqual False (Many == None)
-> slnNeqNoneMany = assertAreEqual False (None == Many)
-> slnEqOneEmpty = assertAreEqual True (One [] == One [])
-> slnEqOne1 = assertAreEqual True (One [1] == One [1])
-> slnEqOne2 = assertAreEqual True (One [1,2] == One [1-(1e-20), 2+(1e-20)])
-> slnEqOne3 = assertAreEqual True (One [1,2,3] == One [1-(1e-20), 2+(1e-20), 3-(1e-20)])
-> slnNeqOneEmpty = assertAreEqual False (One [] == One [1])
-> slnNeqOne1 = assertAreEqual False (One [1] == One [2])
-> slnNeqOne2 = assertAreEqual False (One [1,2] == One [1-(1e-6), 2])
-> slnNeqOne3 = assertAreEqual False (One [1,2,3] == One [1-(1e-6), 2+(1e-6), 3])
+> slnEqMany   = (Many == Many) `compare` True  @?= EQ
+> slnEqNone   = (None == None) `compare` True  @?= EQ
+> slnNeqManyNone = (Many == None) `compare` False @?= EQ
+> slnNeqNoneMany = (None == Many) `compare` False @?= EQ
+> slnEqOneEmpty = (One [] == One []) `compare` True @?= EQ
+> slnEqOne1 = (One [1] == One [1]) `compare` True @?= EQ
+> slnEqOne2 = (One [1,2] == One [1-(1e-20), 2+(1e-20)]) `compare` True @?= EQ
+> slnEqOne3 = (One [1,2,3] == One [1-(1e-20), 2+(1e-20), 3-(1e-20)]) `compare` True @?= EQ
+> slnNeqOneEmpty = (One [] == One [1]) `compare` False @?= EQ
+> slnNeqOne1 = (One [1] == One [2]) `compare` False @?= EQ
+> slnNeqOne2 = (One [1,2] == One [1-(1e-6), 2]) `compare` False @?= EQ
+> slnNeqOne3 = (One [1,2,3] == One [1-(1e-6), 2+(1e-6), 3]) `compare` False @?= EQ
 
-> divList1 = assertAreEqual ([],[0],[],[1],[]) (divList [0,1] 0 1)
-> divList2 = assertAreEqual ([],[0],[],[1],[2]) (divList [0,1,2] 0 1)
-> divList3 = assertAreEqual ([0],[1],[],[2],[]) (divList [0,1,2] 1 2)
-> divList4 = assertAreEqual ([0],[1],[],[2],[3]) (divList [0..3] 1 2)
-> divList5 = assertAreEqual ([0],[1],[],[2],[3,4]) (divList [0..4] 1 2)
-> divList6 = assertAreEqual ([0],[1],[2],[3],[4]) (divList [0..4] 1 3)
-> divList7 = assertAreEqual ([0,1],[2],[3,4],[5],[6,7]) (divList [0..7] 2 5)
+> divList1 = (divList [0,1] 0 1) `compare` ([],[0],[],[1],[]) @?= EQ
+> divList2 = (divList [0,1,2] 0 1) `compare` ([],[0],[],[1],[2]) @?= EQ
+> divList3 = (divList [0,1,2] 1 2) `compare` ([0],[1],[],[2],[]) @?= EQ
+> divList4 = (divList [0..3] 1 2) `compare` ([0],[1],[],[2],[3]) @?= EQ
+> divList5 = (divList [0..4] 1 2) `compare` ([0],[1],[],[2],[3,4]) @?= EQ
+> divList6 = (divList [0..4] 1 3) `compare` ([0],[1],[2],[3],[4]) @?= EQ
+> divList7 = (divList [0..7] 2 5) `compare` ([0,1],[2],[3,4],[5],[6,7]) @?= EQ
 
-> swapListElem2 = assertAreEqual [0] (swapListElem [0] 0 0)
-> swapListElem3 = assertAreEqual [0,1] (swapListElem [0,1] 0 0)
-> swapListElem4 = assertAreEqual [1,0] (swapListElem [0,1] 0 1)
-> swapListElem5 = assertAreEqual [1,0,2] (swapListElem [0,1,2] 0 1)
-> swapListElem6 = assertAreEqual [2,1,0] (swapListElem [0,1,2] 0 2)
-> swapListElem7 = assertAreEqual [0,2,1] (swapListElem [0,1,2] 1 2)
-> swapListElem8 = assertAreEqual [0,1,2,5,4,3,6] (swapListElem [0,1,2,3,4,5,6] 3 5)
+> swapListElem2 = (swapListElem [0] 0 0) `compare` [0] @?= EQ
+> swapListElem3 = (swapListElem [0,1] 0 0) `compare` [0,1] @?= EQ
+> swapListElem4 = (swapListElem [0,1] 0 1) `compare` [1,0] @?= EQ
+> swapListElem5 = (swapListElem [0,1,2] 0 1) `compare` [1,0,2] @?= EQ
+> swapListElem6 = (swapListElem [0,1,2] 0 2) `compare` [2,1,0] @?= EQ
+> swapListElem7 = (swapListElem [0,1,2] 1 2) `compare` [0,2,1] @?= EQ
+> swapListElem8 = (swapListElem [0,1,2,3,4,5,6] 3 5) `compare` [0,1,2,5,4,3,6] @?= EQ
 
-> addRows1 = assertAreEqual [0,2,4,6] (addRows [0,0,0,0] [0,2,4,6])
-> addRows2 = assertAreEqual [0,2,4,6] (addRows [0,1,2,3] [0,1,2,3])
-> addRows3 = assertAreEqual [0,0,0,0] (addRows [0,1,2,3] [0,-1,-2,-3])
+> addRows1 = (addRows [0,0,0,0] [0,2,4,6]) `compare` [0,2,4,6] @?= EQ
+> addRows2 = (addRows [0,1,2,3] [0,1,2,3]) `compare` [0,2,4,6] @?= EQ
+> addRows3 = (addRows [0,1,2,3] [0,-1,-2,-3]) `compare` [0,0,0,0] @?= EQ
 
-> combineRows1 = assertAreEqual [0,2,4,6] (combineRows 2 [0,0,0,0] [0,2,4,6])
-> combineRows2 = assertAreEqual [0,2,4,6] (combineRows 2 [0,1,2,3] [0,0,0,0])
-> combineRows3 = assertAreEqual [0,0,0,0] (combineRows (-1) [0,1,2,3] [0,1,2,3])
+> combineRows1 = (combineRows 2 [0,0,0,0] [0,2,4,6]) `compare` [0,2,4,6] @?= EQ
+> combineRows2 = (combineRows 2 [0,1,2,3] [0,0,0,0]) `compare` [0,2,4,6] @?= EQ
+> combineRows3 = (combineRows (-1) [0,1,2,3] [0,1,2,3]) `compare` [0,0,0,0] @?= EQ
 
-> equivZero1 = assertAreEqual True  (equivZero 1e-21)
-> equivZero2 = assertAreEqual False (equivZero 1e-19)
+> equivZero1 = (equivZero 1e-21) `compare` True  @?= EQ
+> equivZero2 = (equivZero 1e-19) `compare` False @?= EQ
 
-> normalizeRow1 = assertAreEqual [1,1,1] (normalizeRow [2,2,2])
-> normalizeRow2 = assertAreEqual [0,1,1] (normalizeRow [0,2,2])
-> normalizeRow3 = assertAreEqual [0,0,1] (normalizeRow [0,0,2])
-> normalizeRow4 = assertAreEqual [0,0,1] (normalizeRow [1e-21,0,2])
+> normalizeRow1 = (normalizeRow [2,2,2]) `compare` [1,1,1] @?= EQ
+> normalizeRow2 = (normalizeRow [0,2,2]) `compare` [0,1,1] @?= EQ
+> normalizeRow3 = (normalizeRow [0,0,2]) `compare` [0,0,1] @?= EQ
+> normalizeRow4 = (normalizeRow [1e-21,0,2]) `compare` [0,0,1] @?= EQ
 
-> reduceRowBy1 = assertAreEqual [0,2,4] (reduceRowBy [1,1,1] [2,4,6])
+> reduceRowBy1 = (reduceRowBy [1,1,1] [2,4,6]) `compare` [0,2,4] @?= EQ
 
-> rowEqual1 = assertAreEqual False (rowEqual [] [1])
-> rowEqual2 = assertAreEqual False (rowEqual [0] [1])
-> rowEqual3 = assertAreEqual True (rowEqual [1] [1])
-> rowEqual4 = assertAreEqual True (rowEqual [1] [1+1e-21])
+> rowEqual1 = (rowEqual [] [1]) `compare` False @?= EQ
+> rowEqual2 = (rowEqual [0] [1]) `compare` False @?= EQ
+> rowEqual3 = (rowEqual [1] [1]) `compare` True @?= EQ
+> rowEqual4 = (rowEqual [1] [1+1e-21]) `compare` True @?= EQ
 
-> matrixEqual1 = assertAreEqual False (matrixEqual m n)
+> matrixEqual1 = (matrixEqual m n) `compare` False @?= EQ
 >     where m = Matrix [[1,1],[1,1]]
 >           n = Matrix [[1,1],[1,1],[1,1]]
 
-> matrixEqual2 = assertAreEqual False (matrixEqual m n)
+> matrixEqual2 = (matrixEqual m n) `compare` False @?= EQ
 >     where m = Matrix [[1,1,1],[1,1,1]]
 >           n = Matrix [[1,1],[1,1]]
 
-> matrixEqual3 = assertAreEqual False (matrixEqual m n)
+> matrixEqual3 = (matrixEqual m n) `compare` False @?= EQ
 >     where m = Matrix [[1,1,1],[1,1,1]]
 >           n = Matrix [[1,1,1],[1,1,0]]
 
-> matrixEqual4 = assertAreEqual True (matrixEqual m n)
+> matrixEqual4 = (matrixEqual m n) `compare` True @?= EQ
 >     where m = Matrix [[1,1,1],[1,1,1]]
 >           n = Matrix [[1,1,1],[1,1,1]]
 
-> matrixEqual5 = assertAreEqual True (matrixEqual m n)
+> matrixEqual5 = (matrixEqual m n) `compare` True @?= EQ
 >     where m = Matrix [[1,1,1],[1,1,1-1e-20]]
 >           n = Matrix [[1,1,1],[1,1,1]]
 
-> pivotMatrix1 = assertAreEqual True (matrixEqual expected actual)
+> pivotMatrix1 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected     = Matrix [[1,0,0,0], [0,1,0,0], [0,0,1,0]]
 >           Right actual = pivotMatrix expected
 
-> pivotMatrix2 = assertAreEqual True (matrixEqual expected actual)
+> pivotMatrix2 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected     = Matrix [[1,2,0,3], [0,1,0,0], [0,0,1,0]]
 >           Right actual = pivotMatrix (Matrix [[2,4,0,6], [0,1,0,0], [0,0,1,0]])
 
-> pivotMatrix3 = assertAreEqual True (matrixEqual expected actual)
+> pivotMatrix3 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected     = Matrix [[1,0,0,0], [0,1,0,0], [0,0,1,0]]
 >           Right actual = pivotMatrix (Matrix [[0,1,0,0], [2,0,0,0], [0,0,1,0]])
 
-> pivotMatrix4 = assertAreEqual True (matrixEqual expected actual)
+> pivotMatrix4 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected     = Matrix [[1,0,-2,0], [1,1,0,0], [0,0,1,0]]
 >           Right actual = pivotMatrix (Matrix [[1,1,0,0], [-2,0,4,0], [0,0,1,0]])
 
-> pivotMatrix5 = assertAreEqual "No pivot" s
+> pivotMatrix5 = s `compare` "No pivot" @?= EQ
 >     where Left s = pivotMatrix (Matrix [[0,1,0,0], [0,0,4,0], [0,0,1,0]])
 
-> pivotMatrix6 = assertAreEqual True (matrixEqual expected actual)
+> pivotMatrix6 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected     = Matrix [[1,1,0,0], [1,0,4,0], [0,0,1,0]]
 >           Right actual = pivotMatrix (Matrix [[1,1,0,0], [1,0,4,0], [0,0,1,0]])
 
-> reduceLeftCol1 = assertAreEqual True (matrixEqual expected actual)
+> reduceLeftCol1 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected = Matrix [[1,2]]
 >           actual   = reduceLeftCol (Matrix [[1,2]])
 
-> reduceLeftCol2 = assertAreEqual True (matrixEqual expected actual)
+> reduceLeftCol2 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected = Matrix [[1,2], [0,1]]
 >           actual   = reduceLeftCol (Matrix [[1,2], [1,3]])
 
-> reduceLeftCol3 = assertAreEqual True (matrixEqual expected actual)
+> reduceLeftCol3 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected = Matrix [[1,2,3,4], [0,-1,-2,-3], [0,-2,-4,-6]]
 >           actual   = reduceLeftCol (Matrix [[1,2,3,4], [2,3,4,5], [3,4,5,6]])
 
-> gaussianReduce1 = assertAreEqual True (matrixEqual expected actual)
+> gaussianReduce1 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected = Matrix [[1,2,3]]
 >           actual   = gaussianReduce (Matrix [[2,4,6]])
 
-> gaussianReduce2 = assertAreEqual True (matrixEqual expected actual)
+> gaussianReduce2 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected = Matrix [[1,2], [0,1]]
 >           actual   = gaussianReduce (Matrix [[1,2], [1,3]])
 
-> gaussianReduce3 = assertAreEqual True (matrixEqual expected actual)
+> gaussianReduce3 = (matrixEqual expected actual) `compare` True @?= EQ
 >     where expected = Matrix [[1,2,3,4], [0,1,2,3], [0,0,0,0]]
 >           actual   = gaussianReduce (Matrix [[1,3,5,7], [2,3,4,5], [3,6,9,12]])
 
