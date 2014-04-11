@@ -16,17 +16,17 @@
 > getUserDataFromJSON_1    = actual @?= expected
 >     where actual   = getUserDataFromJSON json
 >           expected = Just $ UD {  
->                            udAge     = 3
->                          , udNeedles = False
->                          , udTrunkLengthIncrementPerYear = 1.4
->                          , udTrunkBranchLengthRatio      = 0.6
->                          , udTrunkBranchAngles           = [0.698, 0.898, 1.31 , 0.967]
->                          , udTrunkGirth                  = 5.0
->                          , udWhorlsPerYear               = 9
->                          , udWhorlSize                   = 7
->                          , udBranchGirth                 = 1.0
->                          , udBranchBranchLengthRatio     = 1.0
->                          , udBranchBranchLengthRatio2    = 1.0
+>                            udAge                         = Just 3
+>                          , udNeedles                     = Just False
+>                          , udTrunkLengthIncrementPerYear = Just 1.4
+>                          , udTrunkBranchLengthRatio      = Just 0.6
+>                          , udTrunkBranchAngles           = Just [0.698, 0.898, 1.31 , 0.967]
+>                          , udTrunkGirth                  = Just 5.0
+>                          , udWhorlsPerYear               = Just 9
+>                          , udWhorlSize                   = Just 7
+>                          , udBranchGirth                 = Just 1.0
+>                          , udBranchBranchLengthRatio     = Just 1.0
+>                          , udBranchBranchLengthRatio2    = Just 1.0
 > --                         , udBranchBranchAngle           :: Rad
 >                          }
 >           json = "\

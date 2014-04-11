@@ -2,6 +2,7 @@
 > module Conifer.Types where
 
 > import Data.Default.Class
+> import Data.Maybe
 > import Diagrams.Coordinates
 > import Diagrams.Prelude -- hiding (angleBetween, rotationAbout, direction)
 > import Diagrams.ThreeD.Types
@@ -147,22 +148,22 @@ needles can be customized in various ways.
 The `UserData` type represents the data that can be fed via stdin to configure a tree.
 
 > data UserData = UD {
->       udAge     :: Double
->     , udNeedles :: Bool
->     , udTrunkLengthIncrementPerYear :: Double
->     , udTrunkBranchLengthRatio      :: Double
->     , udTrunkBranchAngles           :: [Double]
->     , udTrunkGirth                  :: Double
->     , udWhorlsPerYear               :: Int
->     , udWhorlSize                   :: Int
->     , udBranchGirth                 :: Double
->     , udBranchBranchLengthRatio     :: Double
->     , udBranchBranchLengthRatio2    :: Double
-> --    , udBranchBranchAngle           :: Rad
+>       udAge                         :: Maybe Double
+>     , udNeedles                     :: Maybe Bool
+>     , udTrunkLengthIncrementPerYear :: Maybe Double
+>     , udTrunkBranchLengthRatio      :: Maybe Double
+>     , udTrunkBranchAngles           :: Maybe [Double]
+>     , udTrunkGirth                  :: Maybe Double
+>     , udWhorlsPerYear               :: Maybe Int
+>     , udWhorlSize                   :: Maybe Int
+>     , udBranchGirth                 :: Maybe Double
+>     , udBranchBranchLengthRatio     :: Maybe Double
+>     , udBranchBranchLengthRatio2    :: Maybe Double
+> --    , udBranchBranchAngle           :: Maybe Rad
 >     } deriving (Show, Eq)
 
 > instance ToJSON UserData where
->     toJSON ud = Object $ HM.fromList [
+>     toJSON ud = Object $ HM.fromList $ filter ((/= Null) . snd) [
 >           ("age", toJSON $ udAge ud) 
 >         , ("needles", toJSON $ udNeedles ud)
 >         , ("udTrunkLengthIncrementPerYear", toJSON $ udTrunkLengthIncrementPerYear ud)
@@ -179,35 +180,35 @@ The `UserData` type represents the data that can be fed via stdin to configure a
 
 > -- sample data
 > ud = UD {
->       udAge     = 3
->     , udNeedles = False
->     , udTrunkLengthIncrementPerYear = 1.4
->     , udTrunkBranchLengthRatio      = 0.6
->     , udTrunkBranchAngles           = [0.698, 0.898, 1.31 , 0.967]
->     , udTrunkGirth                  = 5.0
->     , udWhorlsPerYear               = 9
->     , udWhorlSize                   = 7
->     , udBranchGirth                 = 1.0
->     , udBranchBranchLengthRatio     = 1.0
->     , udBranchBranchLengthRatio2    = 1.0
+>       udAge                         = Just 3
+>     , udNeedles                     = Just False
+>     , udTrunkLengthIncrementPerYear = Just 1.4
+>     , udTrunkBranchLengthRatio      = Just 0.6
+>     , udTrunkBranchAngles           = Just [0.698, 0.898, 1.31 , 0.967]
+>     , udTrunkGirth                  = Just 5.0
+>     , udWhorlsPerYear               = Just 9
+>     , udWhorlSize                   = Just 7
+>     , udBranchGirth                 = Just 1.0
+>     , udBranchBranchLengthRatio     = Just 1.0
+>     , udBranchBranchLengthRatio2    = Just 1.0
 > --    , udBranchBranchAngle           :: Rad
 >     }
 
 
 > instance FromJSON UserData where
 >     parseJSON (Object v)  =  UD
->                          <$> v .: "age"
->                          <*> v .: "needles"
->                          <*> v .: "udTrunkLengthIncrementPerYear"
->                          <*> v .: "udTrunkBranchLengthRatio"
->                          <*> v .: "udTrunkBranchAngles"
->                          <*> v .: "udTrunkGirth"
->                          <*> v .: "udWhorlsPerYear"
->                          <*> v .: "udWhorlSize"
->                          <*> v .: "udBranchGirth"
->                          <*> v .: "udBranchBranchLengthRatio"
->                          <*> v .: "udBranchBranchLengthRatio2"
->  --                        <*> v .: "udBranchBranchAngle"
+>                          <$> v .:? "age"
+>                          <*> v .:? "needles"
+>                          <*> v .:? "udTrunkLengthIncrementPerYear"
+>                          <*> v .:? "udTrunkBranchLengthRatio"
+>                          <*> v .:? "udTrunkBranchAngles"
+>                          <*> v .:? "udTrunkGirth"
+>                          <*> v .:? "udWhorlsPerYear"
+>                          <*> v .:? "udWhorlSize"
+>                          <*> v .:? "udBranchGirth"
+>                          <*> v .:? "udBranchBranchLengthRatio"
+>                          <*> v .:? "udBranchBranchLengthRatio2"
+>  --                        <*> v .:? "udBranchBranchAngle"
 >     parseJSON _           =  mzero
 
 > decodeWith :: (Value -> DAT.Parser b) -> String -> Either String b
@@ -218,18 +219,23 @@ The `UserData` type represents the data that can be fed via stdin to configure a
 > getUserDataFromJSON = decode . B.pack
 
 > argsFromInput ud tp ap = (tp', ap', n)
->     where tp' = tp {
->                       tpTrunkLengthIncrementPerYear = udTrunkLengthIncrementPerYear ud
->                     , tpTrunkBranchLengthRatio      = udTrunkBranchLengthRatio ud
->                     , tpTrunkBranchAngles           = udTrunkBranchAngles ud
->                     , tpTrunkGirth                  = udTrunkGirth ud
->                     , tpWhorlsPerYear               = udWhorlsPerYear ud
->                     , tpWhorlSize                   = udWhorlSize ud
->                     , tpBranchGirth                 = udBranchGirth ud
->                     , tpBranchBranchLengthRatio     = udBranchBranchLengthRatio ud
->                     , tpBranchBranchLengthRatio2    = udBranchBranchLengthRatio2 ud
-> --                    , tpBranchBranchAngle           = udBranchBranchAngle ud
->                     }
->           ap' = ap { apAge = udAge ud }
->           n   = udNeedles ud
+>     where tp' = TreeParams
+>                 (upd tpTrunkLengthIncrementPerYear udTrunkLengthIncrementPerYear ud tp)
+>                 (upd tpTrunkBranchLengthRatio udTrunkBranchLengthRatio ud tp)
+>                 (upd tpTrunkBranchAngles udTrunkBranchAngles ud tp)
+>                 (upd tpTrunkGirth udTrunkGirth ud tp)
+>                 (upd tpWhorlsPerYear udWhorlsPerYear ud tp)
+>                 (upd tpWhorlSize udWhorlSize ud tp)
+>                 (upd tpBranchGirth udBranchGirth ud tp)
+>                 (upd tpBranchBranchLengthRatio udBranchBranchLengthRatio ud tp)
+>                 (upd tpBranchBranchLengthRatio2 udBranchBranchLengthRatio2 ud tp)
+>                 (tpBranchBranchAngle tp)
 
+>           ap' = AgeParams
+>                 (upd apAge udAge ud ap)
+>                 (apTrunkBranchAngleIndex ap)
+>                 (apWhorlPhase ap)
+
+>           n   = maybe False id (udNeedles ud)
+
+> upd f_tp f_ud ud tp = maybe (f_tp tp) id (f_ud ud)
