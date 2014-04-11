@@ -1,17 +1,20 @@
-> {-# LANGUAGE NoMonomorphismRestriction #-}
+> {-# LANGUAGE NoMonomorphismRestriction, OverloadedStrings #-}
 > module Conifer.Types where
 
-> -- import Control.Monad.Reader
-> -- import Data.Cross
 > import Data.Default.Class
-> -- import Diagrams.Backend.SVG
 > import Diagrams.Coordinates
 > import Diagrams.Prelude -- hiding (angleBetween, rotationAbout, direction)
-> -- import Diagrams.ThreeD.Transform
 > import Diagrams.ThreeD.Types
 > import Diagrams.ThreeD.Vector
-> -- import Diagrams.TwoD.Transform.ScaleInv
-> -- import Diagrams.TwoD.Vector (angleBetween)
+
+> import Control.Monad (mzero)
+> import Data.Aeson
+> import qualified Data.Aeson.Types as DAT
+> import qualified Data.Attoparsec as P
+> import qualified Data.ByteString.Lazy.Char8 as B
+> import qualified Data.HashMap.Strict as HM
+> import qualified Data.String as S
+
 
 **The Tree Data Structure**
 
@@ -139,4 +142,94 @@ needles can be customized in various ways.
 >     , needleAngle  = tau / 10
 >     , needleIncr   = 0.05
 >     }
+
+
+The `UserData` type represents the data that can be fed via stdin to configure a tree.
+
+> data UserData = UD {
+>       udAge     :: Double
+>     , udNeedles :: Bool
+>     , udTrunkLengthIncrementPerYear :: Double
+>     , udTrunkBranchLengthRatio      :: Double
+>     , udTrunkBranchAngles           :: [Double]
+>     , udTrunkGirth                  :: Double
+>     , udWhorlsPerYear               :: Int
+>     , udWhorlSize                   :: Int
+>     , udBranchGirth                 :: Double
+>     , udBranchBranchLengthRatio     :: Double
+>     , udBranchBranchLengthRatio2    :: Double
+> --    , udBranchBranchAngle           :: Rad
+>     } deriving (Show, Eq)
+
+> instance ToJSON UserData where
+>     toJSON ud = Object $ HM.fromList [
+>           ("age", toJSON $ udAge ud) 
+>         , ("needles", toJSON $ udNeedles ud)
+>         , ("udTrunkLengthIncrementPerYear", toJSON $ udTrunkLengthIncrementPerYear ud)
+>         , ("udTrunkBranchLengthRatio",      toJSON $ udTrunkBranchLengthRatio ud)
+>         , ("udTrunkBranchAngles",           toJSON $ udTrunkBranchAngles ud)
+>         , ("udTrunkGirth",                  toJSON $ udTrunkGirth ud)
+>         , ("udWhorlsPerYear",               toJSON $ udWhorlsPerYear ud)
+>         , ("udWhorlSize",                   toJSON $ udWhorlSize ud)
+>         , ("udBranchGirth",                 toJSON $ udBranchGirth ud)
+>         , ("udBranchBranchLengthRatio",     toJSON $ udBranchBranchLengthRatio ud)
+>         , ("udBranchBranchLengthRatio2",    toJSON $ udBranchBranchLengthRatio2 ud)
+> --        , ("udBranchBranchAngle",           toJSON $ udBranchBranchAngle ud)
+>         ]
+
+> -- sample data
+> ud = UD {
+>       udAge     = 3
+>     , udNeedles = False
+>     , udTrunkLengthIncrementPerYear = 1.4
+>     , udTrunkBranchLengthRatio      = 0.6
+>     , udTrunkBranchAngles           = [0.698, 0.898, 1.31 , 0.967]
+>     , udTrunkGirth                  = 5.0
+>     , udWhorlsPerYear               = 9
+>     , udWhorlSize                   = 7
+>     , udBranchGirth                 = 1.0
+>     , udBranchBranchLengthRatio     = 1.0
+>     , udBranchBranchLengthRatio2    = 1.0
+> --    , udBranchBranchAngle           :: Rad
+>     }
+
+
+> instance FromJSON UserData where
+>     parseJSON (Object v)  =  UD
+>                          <$> v .: "age"
+>                          <*> v .: "needles"
+>                          <*> v .: "udTrunkLengthIncrementPerYear"
+>                          <*> v .: "udTrunkBranchLengthRatio"
+>                          <*> v .: "udTrunkBranchAngles"
+>                          <*> v .: "udTrunkGirth"
+>                          <*> v .: "udWhorlsPerYear"
+>                          <*> v .: "udWhorlSize"
+>                          <*> v .: "udBranchGirth"
+>                          <*> v .: "udBranchBranchLengthRatio"
+>                          <*> v .: "udBranchBranchLengthRatio2"
+>  --                        <*> v .: "udBranchBranchAngle"
+>     parseJSON _           =  mzero
+
+> decodeWith :: (Value -> DAT.Parser b) -> String -> Either String b
+> decodeWith p s = do
+>   value <- P.eitherResult $ (P.parse json . S.fromString) s
+>   DAT.parseEither p value
+
+> getUserDataFromJSON = decode . B.pack
+
+> argsFromInput ud tp ap = (tp', ap', n)
+>     where tp' = tp {
+>                       tpTrunkLengthIncrementPerYear = udTrunkLengthIncrementPerYear ud
+>                     , tpTrunkBranchLengthRatio      = udTrunkBranchLengthRatio ud
+>                     , tpTrunkBranchAngles           = udTrunkBranchAngles ud
+>                     , tpTrunkGirth                  = udTrunkGirth ud
+>                     , tpWhorlsPerYear               = udWhorlsPerYear ud
+>                     , tpWhorlSize                   = udWhorlSize ud
+>                     , tpBranchGirth                 = udBranchGirth ud
+>                     , tpBranchBranchLengthRatio     = udBranchBranchLengthRatio ud
+>                     , tpBranchBranchLengthRatio2    = udBranchBranchLengthRatio2 ud
+> --                    , tpBranchBranchAngle           = udBranchBranchAngle ud
+>                     }
+>           ap' = ap { apAge = udAge ud }
+>           n   = udNeedles ud
 

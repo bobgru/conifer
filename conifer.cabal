@@ -62,11 +62,15 @@ library
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.5
+                     , aeson
+                     , attoparsec
+                     , bytestring
+                     , data-default-class >=0.0
                      , diagrams-lib ==1.0
                      , diagrams-svg ==1.0
-                     , data-default-class >=0.0
-                     , vector-space
                      , mtl
+                     , unordered-containers
+                     , vector-space
   
   -- Directories containing source files.
   hs-source-dirs:      src
@@ -76,8 +80,7 @@ library
   
 Executable individual
   Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class
-                , conifer, text, aeson, bytestring, unordered-containers
-                , vector, attoparsec, optparse-applicative
+                , conifer, optparse-applicative
   Main-Is:        individual.lhs
   hs-source-dirs:      examples
   default-language:    Haskell2010
@@ -105,6 +108,14 @@ Executable ellipse
 Test-Suite matrix-unit-tests
   Type:           exitcode-stdio-1.0
   Main-Is:        matrixTests.lhs
+  Buildable:      True
+  Build-Depends:  base -any, QuickCheck -any, conifer, HUnit
+  hs-source-dirs: test/unit-tests
+  default-language:    Haskell2010
+
+Test-Suite parser-unit-tests
+  Type:           exitcode-stdio-1.0
+  Main-Is:        parserTests.lhs
   Buildable:      True
   Build-Depends:  base -any, QuickCheck -any, conifer, HUnit
   hs-source-dirs: test/unit-tests
