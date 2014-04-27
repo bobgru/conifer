@@ -105,6 +105,12 @@ Executable ellipse
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
+Executable extract-dims
+  Build-Depends:  base, text, bytestring, attoparsec, aeson, mtl
+  Main-Is:        extractDims.hs
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+
 Test-Suite matrix-unit-tests
   Type:           exitcode-stdio-1.0
   Main-Is:        matrixTests.lhs
