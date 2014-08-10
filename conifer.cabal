@@ -41,10 +41,10 @@ build-type:          Simple
 -- Extra files to be distributed with the package, such as examples or a 
 -- README.
 extra-source-files:  README.md
-                   , examples/individual.lhs
-                   , examples/comparison.lhs
-                   , examples/legend.lhs
-                   , examples/ellipse.lhs
+                   , examples/individual.hs
+                   , examples/comparison.hs
+                   , examples/legend.hs
+                   , examples/ellipse.hs
 
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
@@ -81,27 +81,27 @@ library
 Executable individual
   Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class
                 , conifer, optparse-applicative
-  Main-Is:        individual.lhs
+  Main-Is:        individual.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
 Executable comparison
   Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class
                 , conifer
-  Main-Is:        comparison.lhs
+  Main-Is:        comparison.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
 Executable legend
   Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class,
                   optparse-applicative, safe, conifer
-  Main-Is:        legend.lhs
+  Main-Is:        legend.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
 Executable ellipse
   Build-Depends:  base, diagrams-lib, diagrams-svg, data-default-class, conifer
-  Main-Is:        ellipse.lhs
+  Main-Is:        ellipse.hs
   hs-source-dirs:      examples
   default-language:    Haskell2010
 
@@ -113,7 +113,7 @@ Executable extract-dims
 
 Test-Suite matrix-unit-tests
   Type:           exitcode-stdio-1.0
-  Main-Is:        matrixTests.lhs
+  Main-Is:        matrixTests.hs
   Buildable:      True
   Build-Depends:  base -any, QuickCheck -any, conifer, HUnit
   hs-source-dirs: test/unit-tests
@@ -121,7 +121,7 @@ Test-Suite matrix-unit-tests
 
 Test-Suite parser-unit-tests
   Type:           exitcode-stdio-1.0
-  Main-Is:        parserTests.lhs
+  Main-Is:        parserTests.hs
   Buildable:      True
   Build-Depends:  base -any, QuickCheck -any, conifer, HUnit
   hs-source-dirs: test/unit-tests
