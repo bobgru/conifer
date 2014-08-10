@@ -65,6 +65,7 @@ library
                      , aeson
                      , attoparsec
                      , bytestring
+                     , containers
                      , data-default-class >=0.0
                      , diagrams-lib ==1.0
                      , diagrams-svg ==1.0

@@ -26,6 +26,7 @@ import Conifer.Types
 import Control.Monad.Reader
 import Data.Cross
 import Data.Default.Class
+import Data.Tree(Tree(..))
 import Diagrams.Backend.SVG
 import Diagrams.Coordinates
 import Diagrams.Prelude hiding (angleBetween, rotationAbout, direction)
@@ -207,7 +208,7 @@ tree' ap@(AgeParams age _ _) = do
     let ageIncr = 1 / fromIntegral nb
     let node    = r3 (0, 0, li * ageIncr)
     if age < ageIncr
-        then return (Leaf (node, -1, -1, 0))
+        then return (Node (node, -1, -1, 0) [])
         else do
              g <- trunkGirth
              let girth0  = girth age g
@@ -249,7 +250,7 @@ branch ap@(AgeParams age _ _) node = do
             lr <- bblr
             let s = max (age * lr) 0.1
             let leafNode = node # scale s
-            return (Leaf (leafNode, -1, -1, 0))
+            return (Node (leafNode, -1, -1, 0) [])
         else do
             let ap' = subYear ap
             nodes   <- mapM (branch ap') (newBranchNodes tp node)

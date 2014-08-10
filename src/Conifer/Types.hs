@@ -3,6 +3,7 @@ module Conifer.Types where
 
 import Data.Default.Class
 import Data.Maybe
+import Data.Tree(Tree(..))
 import Diagrams.Coordinates
 import Diagrams.Prelude -- hiding (angleBetween, rotationAbout, direction)
 import Diagrams.ThreeD.Types
@@ -16,18 +17,14 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.HashMap.Strict as HM
 import qualified Data.String as S
 
-
 -- The Tree Data Structure
 --
--- A Tree is a straightforward tree represented by Leaf and Node constructors,
--- with a polymorphic payload in each.
-
-data Tree a = Leaf a | Node a [Tree a]
-    deriving (Show, Eq)
-
--- The payload of a leaf or node is a TreeInfo parameterized on location
--- type, and containing the location, the girth at its origin (the location of
--- which is implicit), the girth at its location, and its age.
+-- A Tree is the standard tree container represented by a Node constructor,
+-- with a polymorphic payload. A leaf is a Node with no children.
+--
+-- The payload is TreeInfo parameterized on location type, and containing
+-- the location, the girth at its origin (the location of which is implicit),
+-- the girth at its location, and its age.
 
 type TreeInfo a = (a, Double, Double, Double)
 
@@ -56,26 +53,17 @@ data TreePrim = Trunk   { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
 --
 -- We need several ways of applying a function throughout a tree, sometimes preserving its
 -- structure, sometimes not.
---
--- The treeMap function is a functor that applies a function uniformly throughout the tree.
-
-instance Functor Tree where fmap = treeMap
-treeMap :: (a -> b) -> Tree a -> Tree b
-treeMap f (Leaf a)    = Leaf (f a)
-treeMap f (Node a ns) = Node (f a) (map (treeMap f) ns)
 
 -- The treeFold function preserves tree structure, but iterates a function over all
 -- nodes from root to leaves.
 
 treeFold :: (b -> a -> b) -> b -> Tree a -> Tree b
-treeFold f a0 (Leaf a)    = Leaf (f a0 a)
 treeFold f a0 (Node a ns) = Node (f a0 a) (map (treeFold f (f a0 a)) ns)
 
 -- The flattenTree function is similar to treeFold, but flattens a tree into a list
 -- in the process.
 
 flattenTree :: (a -> a -> [b]) -> a -> Tree a -> [b]
-flattenTree f a0 (Leaf a)    = f a0 a
 flattenTree f a0 (Node a ns) = f a0 a ++ concatMap (flattenTree f a) ns
 
 -- Specifying a Conifer
