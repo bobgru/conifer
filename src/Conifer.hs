@@ -17,8 +17,9 @@
 module Conifer ( Tree
                , renderTree, renderTreeWithNeedles
                , TreeParams(..), AgeParams(..), NeedleParams(..)
-               , TreeInfo, RTree3
+               , TreeInfo, Tree3
                , tree
+               , aboveGround
                )
 where 
 
@@ -26,7 +27,7 @@ import Conifer.Types
 import Control.Monad.Reader
 import Data.Cross
 import Data.Default.Class
-import Data.Tree(Tree(..))
+import Data.Tree(Tree(..), flatten)
 import Diagrams.Backend.SVG
 import Diagrams.Coordinates
 import Diagrams.Prelude hiding (angleBetween, rotationAbout, direction)
@@ -43,66 +44,72 @@ import Diagrams.TwoD.Vector (angleBetween)
 -- then to ATree2, then to [TreePrim] which are convenient for further processing. The option
 -- of drawing with or without needles is exposed as different pipelines.
 
-renderTree :: RTree3 -> Diagram B R2
+renderTree :: Tree3 -> Diagram B R2
 renderTree = draw . renderTreeToPrim
 
-renderTreeWithNeedles :: (Double -> Bool) -> NeedleParams -> RTree3 -> Diagram B R2
+renderTreeWithNeedles :: (Double -> Bool) -> NeedleParams -> Tree3 -> Diagram B R2
 renderTreeWithNeedles f np = draw' np . withNeedles f . renderTreeToPrim
 
-renderTreeToPrim :: RTree3 -> [TreePrim]
-renderTreeToPrim = toPrim . projectXZ . mkAboveGround . toAbsolute
-
--- Converting from Relative to Absolute Coordinates
---
--- Convert the tree of relative coordinate spaces into a single coherent absolute
--- coordinate space, which will make projection onto the X-Z-plane trivial.
-
-toAbsolute :: RTree3 -> ATree3
-toAbsolute = treeFold infoR3ToP3 (origin, 0, 0, 0)
-
-infoR3ToP3 :: TreeInfo P3 -> TreeInfo R3 -> TreeInfo P3
-infoR3ToP3 (p, _, _, _) (v, g0, g1, a) = (p .+^ v, g0, g1, a)
+renderTreeToPrim :: Tree3 -> [TreePrim]
+renderTreeToPrim = toPrim . projectXZ
 
 -- Respecting the Earth
 --
 -- Assuming the tree is growing on flat ground, we can't have the branches
--- digging into it.
+-- digging into it. This adjustment must be applied immediately after the
+-- calculation of a new branch tip, so that the modeled nodes propagate
+-- correctly.
 
-mkAboveGround :: ATree3 -> ATree3
-mkAboveGround = fmap infoAboveGround
-
-infoAboveGround :: TreeInfo P3 -> TreeInfo P3
-infoAboveGround (n, g0, g1, a) = (aboveGround n, g0, g1, a)
-
-aboveGround :: P3 -> P3
-aboveGround p = p3 (x, y, max 0 z) where (x, y, z) = unp3 p
-
+-- We should never see the base of a branch below ground.
+aboveGround :: (P3, R3) -> (P3, R3)
+aboveGround (p, v) = 
+    if p_z > 0 && p_z' > 0
+        then (p, v)                     -- above ground so no change
+        else if p_z > 0 && p_z' < 0
+                then (p, v')            -- base of branch above, tip below
+                else error "Base of branch below ground"
+    where
+        (p_x, p_y, p_z)    = unp3 p
+        (v_x, v_y, v_z)    = unr3 v
+        (p_x', p_y', p_z') = unp3 (p .+^ v)
+        
+        -- Base above ground, tip below.
+        -- Rotate branch so that tip rests on ground.
+        v'  = r3 (v_x * s, v_y * s, 0)
+        s   = c' / c
+        c   = sqrt (v_x * v_x + v_y * v_y)
+        c'  = sqrt (m_v * m_v - p_z * p_z)
+        m_v = magnitude v
+        
 -- Projecting the Tree onto 2D
 --
 -- We are rendering the tree from the side, so we simply discard the Y-coordinate.
 -- We could project onto another plane and the rest of the pipeline would work.
 
-projectXZ :: ATree3 -> ATree2
+projectXZ :: Tree3 -> Tree2
 projectXZ = fmap infoXZ
 
-infoXZ :: TreeInfo P3 -> TreeInfo P2
-infoXZ (n, g0, g1, a) = (xz n, g0, g1, a)
+infoXZ :: TreeInfo (P3,R3) -> TreeInfo (P2,R2)
+infoXZ ((p,v), g0, g1, a) = ((pxz p,rxz v), g0, g1, a)
 
-xz :: P3 -> P2
-xz p = p2 (x, z) where (x, _, z) = unp3 p
+pxz :: P3 -> P2
+pxz p = p2 (x, z) where (x, _, z) = unp3 p
 
--- Reducing the Tree to Primitives from Absolute Coordinates
+rxz :: R3 -> R2
+rxz r = r2 (x, z) where (x, _, z) = unr3 r
+
+-- Reducing the Tree to Primitives
 --
 -- Given a tree projected onto a plane, convert it to a list
 -- of drawing instructions.
 
-toPrim :: ATree2 -> [TreePrim]
-toPrim = flattenTree treeToPrim (origin, 0, 0, 0)
+toPrim :: Tree2 -> [TreePrim]
+toPrim = flatten . fmap treeToPrim
 
-treeToPrim :: TreeInfo P2 -> TreeInfo P2 -> [TreePrim]
-treeToPrim (n0, _, _, _) (n, g0, g1, a) = [if g0 < 0 then tip else node]
-    where tip  = Tip n0 n a
-          node = Trunk n0 n g0 g1 a
+treeToPrim :: TreeInfo (P2,R2) -> TreePrim
+treeToPrim ((p,v), g0, g1, a) = if g0 < 0 then tip else node
+    where tip  = Tip p (p .+^ v) a
+          node = Trunk p (p .+^ v) g0 g1 a
 
 -- Decorating with Needles
 --
@@ -193,38 +200,37 @@ needles n l nl na = position (zip ps (repeat (needle nl na)))
 -- Age is represented as a continuous variable which allows recursing once per year,
 -- increasing the level of branching, with a remainder of extra growth, leading to
 -- the pyramidal structure of a real conifer.
---
--- We build a tree with each node in its own coordinate space relative to its
--- parent node, which is the natural way to use the diagrams package.
 
-tree :: TreeParams -> AgeParams -> RTree3
-tree tp ap = runReader (tree' ap) tp
+tree :: TreeParams -> AgeParams -> Tree3
+tree tp ap = runReader (tree' ap (origin::P3)) tp
 
-tree' :: AgeParams -> Reader TreeParams RTree3
-tree' ap@(AgeParams age _ _) = do
+tree' :: AgeParams -> P3 -> Reader TreeParams Tree3
+tree' ap@(AgeParams age _ _) p = do
     tp <- ask
     nb <- whorlsPerYear
     li <- tli 
     let ageIncr = 1 / fromIntegral nb
-    let node    = r3 (0, 0, li * ageIncr)
+    let v       = unitZ ^* (li * ageIncr)
+    let n       = (p, v)
+    let p'      = p .+^ v
     if age < ageIncr
-        then return (Node (node, -1, -1, 0) [])
+        then return (Node (n, -1, -1, 0) [])
         else do
              g <- trunkGirth
              let girth0  = girth age g
              let girth1  = girth (age - ageIncr) g
              let apNext  = (adjustAge (-ageIncr) . advancePhase tp . advanceTrunkBranchAngle tp) ap
-             t  <- tree' apNext
-             ws <- whorl apNext
-             return (Node (node, girth0, girth1, age) (t : ws))
+             t  <- tree' apNext p'
+             ws <- whorl apNext p'
+             return (Node (n, girth0, girth1, age) (t : ws))
 
 -- A whorl is some number of branches, evenly spaced but at varying angle
 -- from the vertical (an acknowledged hack to "shake up" the otherwise rigidly
 -- regular tree a little). A whorl is rotated by the whorl phase, which changes
 -- from one to the next.
 
-whorl :: AgeParams -> Reader TreeParams [RTree3]
-whorl ap@(AgeParams _ tbai phase) = do
+whorl :: AgeParams -> P3 -> Reader TreeParams [Tree3]
+whorl ap@(AgeParams _ tbai phase) p = do
     tp <- ask
 
     lr <- tblr
@@ -235,48 +241,49 @@ whorl ap@(AgeParams _ tbai phase) = do
          where theta i = fromIntegral i * tau / fromIntegral nb + phase
                phi i   = as !! ((i + tbai) `mod` (length as))
 
-    mapM (\i -> branch ap (pt i)) [0 .. nb - 1]
+    mapM (\i -> branch ap (p, (pt i))) [0 .. nb - 1]
 
 -- A branch shoots forward a certain length, then ends or splits into three branches,
 -- going left, center, and right. If the branch is less than a year old, it's a shoot
 -- with a leaf. The length is scaled down by its age. Scaling by 0 is disallowed by
 -- diagrams, so enforce a minimum scale of 0.1.
 
-branch :: AgeParams -> R3 -> Reader TreeParams RTree3
-branch ap@(AgeParams age _ _) node = do
+branch :: AgeParams -> (P3, R3) -> Reader TreeParams Tree3
+branch ap@(AgeParams age _ _) (p, v) = do
     tp <- ask
     if age < 1
         then do
             lr <- bblr
             let s = max (age * lr) 0.1
-            let leafNode = node # scale s
-            return (Node (leafNode, -1, -1, 0) [])
+            let n = aboveGround (p, v # scale s) 
+            return (Node (n, -1, -1, 0) [])
         else do
             let ap' = subYear ap
-            nodes   <- mapM (branch ap') (newBranchNodes tp node)
+            let n@(p', v') = aboveGround (p, v) 
+            nodes   <- mapM (branch ap') (newBranchNodes tp (p' .+^ v', v'))
             g       <- branchGirth
             let g0  = girth (age - 1) g
-            return (Node (node, g0, g0, age) nodes)
+            return (Node (n, g0, g0, age) nodes)
 
 -- Next year's subbranches continue straight, to the left and to the right. The straight
 -- subbranch grows at a possibly different rate from the side subbranches. Scale the
 -- branches to their full length. If they are leaves, they will be scaled back.
 
-newBranchNodes :: TreeParams -> R3 -> [R3]
-newBranchNodes tp node = [l, c, r]
+newBranchNodes :: TreeParams -> (P3, R3) -> [(P3, R3)]
+newBranchNodes tp (p, v) = [(p,l), (p,c), (p,r)]
     where bba    = tpBranchBranchAngle tp
           bblr   = tpBranchBranchLengthRatio tp
           bblr2  = tpBranchBranchLengthRatio2 tp
 
-          angle  = 1/4 - (asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) node
+          angle  = 1/4 - (asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) v
           zAxis  = (asSpherical . direction) unitZ
-          nAxis  = (asSpherical . direction) (cross3 unitZ node)
+          nAxis  = (asSpherical . direction) (cross3 unitZ v)
           t1     = rotationAbout origin nAxis angle
           t2 a   = conjugate t1 (rotationAbout origin zAxis a)
 
-          l      = node # transform (t2   bba)  # scale bblr2
-          r      = node # transform (t2 (-bba)) # scale bblr2
-          c      = node                         # scale bblr
+          l      = v # transform (t2   bba)  # scale bblr2
+          r      = v # transform (t2 (-bba)) # scale bblr2
+          c      = v                         # scale bblr
 
 -- Helper functions for building the tree:
 

@@ -34,9 +34,8 @@ type TreeInfo a = (a, Double, Double, Double)
 -- is projected to ATree2 (2D tree with absolute coordinates) before
 -- being flattened to a list of primitive drawing elements.
 
-type RTree3 = Tree (TreeInfo R3)
-type ATree3 = Tree (TreeInfo P3)
-type ATree2 = Tree (TreeInfo P2)
+type Tree3 = Tree (TreeInfo (P3, R3))
+type Tree2 = Tree (TreeInfo (P2, R2))
 
 -- The tree is ultimately converted to context-free drawing instructions
 -- which when carried out produce diagrams.
@@ -48,23 +47,6 @@ type ATree2 = Tree (TreeInfo P2)
 data TreePrim = Trunk   { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
               | Tip     { p0::P2, p1::P2, age::Double }
               | Needles { p0::P2, p1::P2 }
-
--- Tree Combinators
---
--- We need several ways of applying a function throughout a tree, sometimes preserving its
--- structure, sometimes not.
-
--- The treeFold function preserves tree structure, but iterates a function over all
--- nodes from root to leaves.
-
-treeFold :: (b -> a -> b) -> b -> Tree a -> Tree b
-treeFold f a0 (Node a ns) = Node (f a0 a) (map (treeFold f (f a0 a)) ns)
-
--- The flattenTree function is similar to treeFold, but flattens a tree into a list
--- in the process.
-
-flattenTree :: (a -> a -> [b]) -> a -> Tree a -> [b]
-flattenTree f a0 (Node a ns) = f a0 a ++ concatMap (flattenTree f a) ns
 
 -- Specifying a Conifer
 --
