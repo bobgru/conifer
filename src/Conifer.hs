@@ -27,7 +27,7 @@ import Conifer.Types
 import Control.Monad.Reader
 import Data.Cross
 import Data.Default.Class
-import Data.Tree(Tree(..), flatten)
+import Data.Tree(Tree(..), flatten, unfoldTree)
 import Diagrams.Backend.SVG
 import Diagrams.Coordinates
 import Diagrams.Prelude hiding (angleBetween, rotationAbout, direction)
@@ -90,7 +90,7 @@ projectXZ :: Tree3 -> Tree2
 projectXZ = fmap infoXZ
 
 infoXZ :: TreeInfo (P3,R3) -> TreeInfo (P2,R2)
-infoXZ ((p,v), g0, g1, a) = ((pxz p,rxz v), g0, g1, a)
+infoXZ ((p,v), g0, g1, a, nt) = ((pxz p,rxz v), g0, g1, a, nt)
 
 pxz :: P3 -> P2
 pxz p = p2 (x, z) where (x, _, z) = unp3 p
@@ -107,7 +107,7 @@ toPrim :: Tree2 -> [TreePrim]
 toPrim = flatten . fmap treeToPrim
 
 treeToPrim :: TreeInfo (P2,R2) -> TreePrim
-treeToPrim ((p,v), g0, g1, a) = if g0 < 0 then tip else node
+treeToPrim ((p,v), g0, g1, a, _) = if g0 < 0 then tip else node
     where tip  = Tip p (p .+^ v) a
           node = Trunk p (p .+^ v) g0 g1 a
 
@@ -185,83 +185,99 @@ needles n l nl na = position (zip ps (repeat (needle nl na)))
     where ps = map p2 [(x,0)|x <- [0, dx .. l - dx]]
           dx = l / fromIntegral (n + 1)
 
--- Growing a Conifer
+
+-- Growing a conifer by unfolding.
 --
--- Our tree rises from its origin to a node where there is another tree, and
--- a whorl of branches.  A branch shoots out from its origin to a node, where
--- it branches into some number, possibly zero, of other branches.
+-- The tree starts from a seed, representing the first segment of the trunk.
 --
--- Trunks differ from branches in the composition of their subnodes. A trunk
--- contains another trunk and a whorl of branches. A branch contains the next
--- level of branches.
+-- At the first unfolding, the seed becomes part of the tree, and a new batch of
+-- seeds is produced, one for the trunk and one for each branch of a whorl.
 --
--- A leaf represents the end of a trunk or branch, containing only its location.
---
+-- At subsequent unfoldings, the "trunk seed" repeats the process. However, each
+-- "branch seed" unfolds as a branch and new branch seeds.
+
 -- Age is represented as a continuous variable which allows recursing once per year,
 -- increasing the level of branching, with a remainder of extra growth, leading to
 -- the pyramidal structure of a real conifer.
 
 tree :: TreeParams -> AgeParams -> Tree3
-tree tp ap = runReader (tree' ap (origin::P3)) tp
+tree tp ap = unfoldTree growTree (seed tp ap)
 
-tree' :: AgeParams -> P3 -> Reader TreeParams Tree3
-tree' ap@(AgeParams age _ _) p = do
-    li <- tli
-    wpy <- asks whorlsPerYear
-    wsz <- asks whorlSize
-    let ageIncr = 1 / fromIntegral wpy
-    let v       = unitZ ^* (li * ageIncr)
-    let n       = (p, v)
-    let p'      = p .+^ v
-    if age < ageIncr
-        then return (Node (n, -1, -1, 0) [])
-        else do
-             g <- trunkGirth
-             let girth0  = girth age g
-             let girth1  = girth (age - ageIncr) g
-             let apNext  = (adjustAge (-ageIncr) . advancePhase wsz wpy . advanceTrunkBranchAngle wsz) ap
-             t  <- tree' apNext p'
-             ws <- whorl apNext p'
-             return (Node (n, girth0, girth1, age) (t : ws))
+seed :: TreeParams -> AgeParams -> Seed
+seed tp ap@(AgeParams age _ _) = (ti, tp, ap)
+    where
+        ti      = ((p, v), g, g', age, TrunkNode)
+        (p, v)  = (origin::P3, unitZ ^* (lpy * ageIncr))
+        lpy     = tpTrunkLengthIncrementPerYear tp
+        ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
+        tg      = tpTrunkGirth tp
+        g       = girth age tg
+        g'      = girth (age - ageIncr) tg
 
--- A whorl is some number of branches, evenly spaced but at varying angle
--- from the vertical (an acknowledged hack to "shake up" the otherwise rigidly
--- regular tree a little). A whorl is rotated by the whorl phase, which changes
--- from one to the next.
+-- A node is inserted into the tree unchanged, and a new list of nodes is produced.
 
-whorl :: AgeParams -> P3 -> Reader TreeParams [Tree3]
-whorl ap@(AgeParams _ tbai phase) p = do
-    lr <- tblr
-    nb <- whorlSize
-    as <- tbas
+-- Given a seed, return a node in the tree and a bunch of new seeds.
+-- If the seed is a new sprout (i.e. less than a year old) return it without extra seeds.
+-- Seeds can be either for TrunkNodes or BranchNodes. A TrunkNode seed produces a TrunkNode,
+-- possibly another TrunkNode seed, and possibly a whorl of BranchNode seeds.
 
-    let pt i = r3 (cos (theta i), sin (theta i), cos (phi i)) ^* lr
+-- Unfold a seed by returning its TreeInfo and new seeds representing upward growth
+-- and the next level of branching. If a seed's age is less than one unit of growth,
+-- no more seeds are produced by it.
+
+growTree :: Seed -> (TreeInfo (P3, R3), [Seed])
+growTree (ti@((p, v), _, _, _, TrunkNode), tp, ap@(AgeParams age _ _))  = (ti, ss)
+    where
+        ss      = if age < ageIncr then [] else (t:ws)
+        ageIncr = 1 / fromIntegral wpy
+        wpy     = tpWhorlsPerYear tp
+
+        t       = if age' < ageIncr
+                    then (((p', v), -1, -1, 0, TrunkNode), tp, apNext)
+                    else (((p', v), g, g', age', TrunkNode), tp, apNext)
+
+        p'      = p .+^ v
+        apNext  = adjustAge (-ageIncr) .
+                  advancePhase wsz wpy .
+                  advanceTrunkBranchAngle wsz $ ap
+        wsz     = tpWhorlSize tp
+
+        g       = girth age' tg
+        g'      = girth (age' - ageIncr) tg
+        tg      = tpTrunkGirth tp
+        age'    = apAge apNext
+        
+        ws      = whorl p' tp apNext
+
+growTree (ti@((p, v), _, _, _, BranchNode), tp, ap@(AgeParams age _ _))  = (ti', ss)
+    where
+        -- If the branch is a tip, scale it back.
+        ti' = if age < 1 then (n, -1, -1, 0, BranchNode) else ti
+        lr  = tpBranchBranchLengthRatio tp
+        s   = max (age * lr) 0.1
+        n   = aboveGround (p, v # scale s) 
+            
+        -- If the branch is a tip, don't produce more seeds.
+        ss       = if age < 1 then [] else ss'
+        ss'      = [ ((n, g, g, apAge ap', BranchNode), tp, ap') | n <- bs ]
+        bs       = newBranchNodes tp (p' .+^ v', v')
+        ap'      = subYear ap
+        (p', v') = aboveGround (p, v) 
+        g        = girth (apAge ap' - 1) (tpBranchGirth tp)
+
+whorl :: P3 -> TreeParams -> AgeParams -> [Seed]
+whorl p tp ap@(AgeParams age tbai phase) = ss
+  where
+    lr   = tpTrunkBranchLengthRatio tp
+    nb   = tpWhorlSize tp
+    as   = tpTrunkBranchAngles tp
+    pt :: Int -> R3
+    pt i = r3 (cos (theta i), sin (theta i), cos (phi i)) ^* lr
          where theta i = fromIntegral i * tau / fromIntegral nb + phase
                phi i   = as !! ((i + tbai) `mod` (length as))
+    g0   = girth (age - 1) (tpBranchGirth tp)
+    ss   = [ (((p, (pt i)), g0, g0, age, BranchNode), tp, ap) | i <- [0 .. nb - 1]]
 
-    mapM (\i -> branch ap (p, (pt i))) [0 .. nb - 1]
-
--- A branch shoots forward a certain length, then ends or splits into three branches,
--- going left, center, and right. If the branch is less than a year old, it's a shoot
--- with a leaf. The length is scaled down by its age. Scaling by 0 is disallowed by
--- diagrams, so enforce a minimum scale of 0.1.
-
-branch :: AgeParams -> (P3, R3) -> Reader TreeParams Tree3
-branch ap@(AgeParams age _ _) (p, v) = do
-    tp <- ask
-    if age < 1
-        then do
-            lr <- bblr
-            let s = max (age * lr) 0.1
-            let n = aboveGround (p, v # scale s) 
-            return (Node (n, -1, -1, 0) [])
-        else do
-            let ap' = subYear ap
-            let n@(p', v') = aboveGround (p, v) 
-            nodes   <- mapM (branch ap') (newBranchNodes tp (p' .+^ v', v'))
-            g       <- branchGirth
-            let g0  = girth (age - 1) g
-            return (Node (n, g0, g0, age) nodes)
 
 -- Next year's subbranches continue straight, to the left and to the right. The straight
 -- subbranch grows at a possibly different rate from the side subbranches. Scale the
@@ -299,19 +315,6 @@ advanceTrunkBranchAngle wsz (AgeParams a i p) = AgeParams a i' p
 advancePhase :: Int -> Int -> AgeParams -> AgeParams
 advancePhase wsz wpy (AgeParams a i p) = AgeParams a i p'
     where p'  = p + tau / (fromIntegral wsz * fromIntegral wpy * 2)
-
--- Helpers to pull specific information from the immutable configuration:
-
-tli           = asks tpTrunkLengthIncrementPerYear
-tblr          = asks tpTrunkBranchLengthRatio
-tbas          = asks tpTrunkBranchAngles
-trunkGirth    = asks tpTrunkGirth
-whorlsPerYear = asks tpWhorlsPerYear
-whorlSize     = asks tpWhorlSize
-branchGirth   = asks tpBranchGirth
-bblr          = asks tpBranchBranchLengthRatio
-bblr2         = asks tpBranchBranchLengthRatio2
-bba           = asks tpBranchBranchAngle
 
 -- Produce a width based on age and girth characteristic. Don't let the
 -- width go below the minimum.

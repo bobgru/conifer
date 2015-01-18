@@ -26,7 +26,9 @@ import qualified Data.String as S
 -- the location, the girth at its origin (the location of which is implicit),
 -- the girth at its location, and its age.
 
-type TreeInfo a = (a, Double, Double, Double)
+data NodeType = SeedNode | TrunkNode | BranchNode deriving (Show)
+
+type TreeInfo a = (a, Double, Double, Double, NodeType)
 
 -- We specialize the types for the phases of tree development.
 -- The tree grows as type Tree3 (nodes in 3D), is projected to
@@ -43,6 +45,7 @@ type Tree2 = Tree (TreeInfo (P2, R2))
 --     with girth g0 at p0 and g1 at p1.
 --   Tip is the tip of a tree or branch, between points p0 and p1.
 --   Needles indicates decoration with needles between points p0 and p1.
+--   Trunk and Tip carry age as a hint for when needles should be drawn.
 
 data TreePrim = Trunk   { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
               | Tip     { p0::P2, p1::P2, age::Double }
@@ -97,6 +100,9 @@ data AgeParams = AgeParams {
     , apTrunkBranchAngleIndex       :: Int
     , apWhorlPhase                  :: Double
     } deriving (Show, Eq)
+
+-- A tree is unfolded from a seed.
+type Seed = (TreeInfo (P3, R3), TreeParams, AgeParams)
 
 -- The tree can be optionally decorated with needles, in which case the
 -- needles can be customized in various ways.
