@@ -40,9 +40,9 @@ import Diagrams.TwoD.Vector (angleBetween)
 -- Creating a Drawing of a Tree
 --
 -- Given a tree, grown by any policy, convert it to a diagram. The pipeline
--- of functions converts the original RTree3—most convenient during construction—to ATree3
--- then to ATree2, then to [TreePrim] which are convenient for further processing. The option
--- of drawing with or without needles is exposed as different pipelines.
+-- of functions converts the original Tree3 to Tree2, then to [TreePrim] which
+-- are convenient for further processing. The option of drawing with or without
+-- needles is exposed as different pipelines.
 
 renderTree :: Tree3 -> Diagram B R2
 renderTree = draw . renderTreeToPrim
@@ -307,19 +307,16 @@ advancePhase tp (AgeParams a i p) = AgeParams a i p'
 
 -- Helpers to pull specific information from the immutable configuration:
 
-fetch :: (TreeParams -> a) -> Reader TreeParams a
-fetch f = do tp <- ask; return (f tp)
-
-tli           = fetch tpTrunkLengthIncrementPerYear
-tblr          = fetch tpTrunkBranchLengthRatio
-tbas          = fetch tpTrunkBranchAngles
-trunkGirth    = fetch tpTrunkGirth
-whorlsPerYear = fetch tpWhorlsPerYear
-whorlSize     = fetch tpWhorlSize
-branchGirth   = fetch tpBranchGirth
-bblr          = fetch tpBranchBranchLengthRatio
-bblr2         = fetch tpBranchBranchLengthRatio2
-bba           = fetch tpBranchBranchAngle
+tli           = asks tpTrunkLengthIncrementPerYear
+tblr          = asks tpTrunkBranchLengthRatio
+tbas          = asks tpTrunkBranchAngles
+trunkGirth    = asks tpTrunkGirth
+whorlsPerYear = asks tpWhorlsPerYear
+whorlSize     = asks tpWhorlSize
+branchGirth   = asks tpBranchGirth
+bblr          = asks tpBranchBranchLengthRatio
+bblr2         = asks tpBranchBranchLengthRatio2
+bba           = asks tpBranchBranchAngle
 
 -- Produce a width based on age and girth characteristic. Don't let the
 -- width go below the minimum.

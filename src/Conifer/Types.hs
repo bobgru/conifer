@@ -28,21 +28,21 @@ import qualified Data.String as S
 
 type TreeInfo a = (a, Double, Double, Double)
 
--- We specialize the types for the three phases of tree development.
--- The tree grows as type RTree3 (3D tree with relative coordinates),
--- is converted to ATree3 (3D tree with absolute coordinates), and
--- is projected to ATree2 (2D tree with absolute coordinates) before
--- being flattened to a list of primitive drawing elements.
+-- We specialize the types for the phases of tree development.
+-- The tree grows as type Tree3 (nodes in 3D), is projected to
+-- Tree2 (nodes in 2D) before being flattened to a list of
+-- primitive drawing elements.
 
 type Tree3 = Tree (TreeInfo (P3, R3))
 type Tree2 = Tree (TreeInfo (P2, R2))
 
 -- The tree is ultimately converted to context-free drawing instructions
 -- which when carried out produce diagrams.
--- * Trunk is a section of trunk or branch between points p0 and p1,
---    with girth g0 at p0 and g1 at p1.
--- * Tip is the tip of a tree or branch, between points p0 and p1.
--- * Needles indicates decoration with needles between points p0 and p1.
+--
+--   Trunk is a section of trunk or branch between points p0 and p1,
+--     with girth g0 at p0 and g1 at p1.
+--   Tip is the tip of a tree or branch, between points p0 and p1.
+--   Needles indicates decoration with needles between points p0 and p1.
 
 data TreePrim = Trunk   { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
               | Tip     { p0::P2, p1::P2, age::Double }
