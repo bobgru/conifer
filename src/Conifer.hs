@@ -206,10 +206,10 @@ tree tp ap = runReader (tree' ap (origin::P3)) tp
 
 tree' :: AgeParams -> P3 -> Reader TreeParams Tree3
 tree' ap@(AgeParams age _ _) p = do
-    tp <- ask
-    nb <- whorlsPerYear
-    li <- tli 
-    let ageIncr = 1 / fromIntegral nb
+    li <- tli
+    wpy <- asks whorlsPerYear
+    wsz <- asks whorlSize
+    let ageIncr = 1 / fromIntegral wpy
     let v       = unitZ ^* (li * ageIncr)
     let n       = (p, v)
     let p'      = p .+^ v
@@ -219,7 +219,7 @@ tree' ap@(AgeParams age _ _) p = do
              g <- trunkGirth
              let girth0  = girth age g
              let girth1  = girth (age - ageIncr) g
-             let apNext  = (adjustAge (-ageIncr) . advancePhase tp . advanceTrunkBranchAngle tp) ap
+             let apNext  = (adjustAge (-ageIncr) . advancePhase wsz wpy . advanceTrunkBranchAngle wsz) ap
              t  <- tree' apNext p'
              ws <- whorl apNext p'
              return (Node (n, girth0, girth1, age) (t : ws))
@@ -231,8 +231,6 @@ tree' ap@(AgeParams age _ _) p = do
 
 whorl :: AgeParams -> P3 -> Reader TreeParams [Tree3]
 whorl ap@(AgeParams _ tbai phase) p = do
-    tp <- ask
-
     lr <- tblr
     nb <- whorlSize
     as <- tbas
@@ -294,16 +292,13 @@ adjustAge :: Double -> AgeParams -> AgeParams
 adjustAge da (AgeParams a i p) = AgeParams a' i p 
     where a' = a + da
 
-advanceTrunkBranchAngle :: TreeParams -> AgeParams -> AgeParams
-advanceTrunkBranchAngle tp (AgeParams a i p) = AgeParams a i' p
-    where ws  = fromIntegral (tpWhorlSize tp)
-          i'  = (i + 1) `mod` ws
+advanceTrunkBranchAngle :: Int -> AgeParams -> AgeParams
+advanceTrunkBranchAngle wsz (AgeParams a i p) = AgeParams a i' p
+    where i'  = (i + 1) `mod` wsz
 
-advancePhase :: TreeParams -> AgeParams -> AgeParams
-advancePhase tp (AgeParams a i p) = AgeParams a i p'
-    where ws  = fromIntegral (tpWhorlSize tp)
-          wpy = fromIntegral (tpWhorlsPerYear tp)
-          p'  = p + tau / (ws * wpy * 2)
+advancePhase :: Int -> Int -> AgeParams -> AgeParams
+advancePhase wsz wpy (AgeParams a i p) = AgeParams a i p'
+    where p'  = p + tau / (fromIntegral wsz * fromIntegral wpy * 2)
 
 -- Helpers to pull specific information from the immutable configuration:
 
