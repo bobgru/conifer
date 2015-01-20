@@ -24,7 +24,6 @@ module Conifer ( Tree
 where 
 
 import Conifer.Types
-import Control.Monad.Reader
 import Data.Cross
 import Data.Default.Class
 import Data.Tree(Tree(..), flatten, unfoldTree)
@@ -117,10 +116,10 @@ treeToPrim ((p,v), g0, g1, a, _) = if g0 < 0 then tip else node
 -- with needles, according to the predicate supplied by the consumer. Append the
 -- needle-drawing instructions as new primitives.
 
-withNeedles :: (Double -> Bool) -> [TreePrim] -> [TreePrim]
+withNeedles :: (Age -> Bool) -> [TreePrim] -> [TreePrim]
 withNeedles f ps = ps ++ (map toNeedles . filter (shouldAddNeedles f)) ps
 
-shouldAddNeedles :: (Double -> Bool) -> TreePrim -> Bool
+shouldAddNeedles :: (Age -> Bool) -> TreePrim -> Bool
 shouldAddNeedles f (Trunk _ _ _ _ a) = f a
 shouldAddNeedles f (Tip   _ _     a) = f a
 shouldAddNeedles _ _                 = False
@@ -201,18 +200,85 @@ needles n l nl na = position (zip ps (repeat (needle nl na)))
 -- the pyramidal structure of a real conifer.
 
 tree :: TreeParams -> AgeParams -> Tree3
-tree tp ap = unfoldTree growTree (seed tp ap)
+tree tp ap = calcGirths a tp . scaleTips a tp . pruneByScale 1e-6 $ pruneByAge a $ tree' tp ap
+    where a = apAge ap
+
+-- The tree' function produces an infinite tree which must be pruned to use.
+
+pruneByAge :: Age -> TreeSpec3 -> TreeSpec3
+pruneByAge a (Node n@((p, v), _, _, a', _) ns)
+    | a > a'  && not (a `equiv` a')  =  Node n (map (pruneByAge a) ns)
+    | otherwise                      =  Node n []
+
+pruneByScale :: Double -> TreeSpec3 -> TreeSpec3
+pruneByScale s (Node n@((_, v), _, _, _, _) ns)
+    | magnitude v > s  =  Node n (map (pruneByScale s) ns)
+    | otherwise        =  Node n []
+
+scaleTips :: Age -> TreeParams -> TreeSpec3 -> TreeSpec3
+scaleTips a tp = fmap (scaleTip a tp)
+
+-- Tips are recorded as though grown in full-year increments. They
+-- are trimmed to partial-year growth here.
+scaleTip :: Age -> TreeParams -> SpecInfo (P3, R3) -> SpecInfo (P3, R3)
+scaleTip a tp  n@((p, v), _, _, a', TrunkNode) = n'
+    where
+        n'  = if isTip a a' then (pv, -1, -1, a - a' + 1, TrunkNode) else n
+        lpy = tpTrunkLengthIncrementPerYear tp
+        ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
+        s   = max ((a - a' + 1) * lpy * ageIncr) 1e-7
+        pv  = (p, v # scale s)
+scaleTip a tp n@((p, v), _, _, a', BranchNode) = n'
+    where
+        n'  = if isTip a a' then (pv, -1, -1, a - a' + 1, BranchNode) else n
+        lr  = tpBranchBranchLengthRatio tp
+        s   = max ((a - a' + 1) * lr) 1e-7
+        pv  = (p, v # scale s)
+
+isTip :: Age -> Age -> Bool
+isTip ageTree ageNode = ageTree < ageNode || ageTree `equiv` ageNode
+
+equiv :: Age -> Age -> Bool
+equiv x y = abs (x - y) < 1e-6
+
+-- Translate the age and girth specification into a girth to draw.
+calcGirths :: Age -> TreeParams -> TreeSpec3 -> Tree3
+calcGirths a tp = fixupTipGirths . fmap (calcGirth a tp)
+
+-- Girths are recorded as the ratios to scale by age, which we do here.
+calcGirth :: Age -> TreeParams -> SpecInfo (P3, R3) -> TreeInfo (P3, R3)
+calcGirth a tp n@(pv, g, g', a', BranchNode)
+    | g == (-1) || g' == (-1)  =  n
+    | otherwise                =  (pv, gg, gg, a', BranchNode)
+    where
+        gg  = girth (a - a') g
+calcGirth a tp n@(pv, g, g', a', TrunkNode)
+    | g == (-1) || g' == (-1)  =  n
+    | otherwise                =  (pv, gg, gg', a', TrunkNode)
+    where
+        gg  = girth (a - a') g
+        gg' = girth (a - a') g'
+
+-- TODO might be unnecessary
+fixupTipGirths :: Tree3 -> Tree3
+fixupTipGirths (Node (pv, _, _, a, t) [])  =  Node (pv, -1, -1, a, t) []
+fixupTipGirths n = n
+ 
+-- This tree grows without bound.
+tree' :: TreeParams -> AgeParams -> TreeSpec3
+tree' tp ap = unfoldTree growTree (seed tp ap)
 
 seed :: TreeParams -> AgeParams -> Seed
-seed tp ap@(AgeParams age _ _) = (ti, tp, ap)
+seed tp ap = (ti, tp, ap')
     where
-        ti      = ((p, v), g, g', age, TrunkNode)
+        ap'     = ap { apAge = 0 }
+        ti      = ((p, v), g, g', apAge ap', TrunkNode)
         (p, v)  = (origin::P3, unitZ ^* (lpy * ageIncr))
         lpy     = tpTrunkLengthIncrementPerYear tp
         ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
         tg      = tpTrunkGirth tp
-        g       = girth age tg
-        g'      = girth (age - ageIncr) tg
+        g       = tg
+        g'      = tg * (1 - ageIncr)
 
 -- A node is inserted into the tree unchanged, and a new list of nodes is produced.
 
@@ -225,45 +291,36 @@ seed tp ap@(AgeParams age _ _) = (ti, tp, ap)
 -- and the next level of branching. If a seed's age is less than one unit of growth,
 -- no more seeds are produced by it.
 
-growTree :: Seed -> (TreeInfo (P3, R3), [Seed])
-growTree (ti@((p, v), _, _, _, TrunkNode), tp, ap@(AgeParams age _ _))  = (ti, ss)
+growTree :: Seed -> (SpecInfo (P3, R3), [Seed])
+growTree (ti@((p, v), _, _, _, TrunkNode), tp, ap)  = (ti, t:ws)
     where
-        ss      = if age < ageIncr then [] else (t:ws)
         ageIncr = 1 / fromIntegral wpy
         wpy     = tpWhorlsPerYear tp
 
-        t       = if age' < ageIncr
-                    then (((p', v), -1, -1, 0, TrunkNode), tp, apNext)
-                    else (((p', v), g, g', age', TrunkNode), tp, apNext)
+        t       = (((p', v), g, g', age', TrunkNode), tp, apNext)
 
         p'      = p .+^ v
-        apNext  = adjustAge (-ageIncr) .
+        apNext  = adjustAge ageIncr .
                   advancePhase wsz wpy .
                   advanceTrunkBranchAngle wsz $ ap
         wsz     = tpWhorlSize tp
 
-        g       = girth age' tg
-        g'      = girth (age' - ageIncr) tg
+        g       = tg
+        g'      = tg * (1 - ageIncr)
         tg      = tpTrunkGirth tp
         age'    = apAge apNext
         
-        ws      = whorl p' tp apNext
+        -- TODO The age concept isn't quite right. Branches grow too fast compared
+        -- to the trunk. They look better when prematurely aged by a year.
+        ws      = whorl p' tp (adjustAge 1 apNext)
 
-growTree (ti@((p, v), _, _, _, BranchNode), tp, ap@(AgeParams age _ _))  = (ti', ss)
+growTree (ti@((p, v), _, _, _, BranchNode), tp, ap)  = (ti, ss)
     where
-        -- If the branch is a tip, scale it back.
-        ti' = if age < 1 then (n, -1, -1, 0, BranchNode) else ti
-        lr  = tpBranchBranchLengthRatio tp
-        s   = max (age * lr) 0.1
-        n   = aboveGround (p, v # scale s) 
-            
-        -- If the branch is a tip, don't produce more seeds.
-        ss       = if age < 1 then [] else ss'
-        ss'      = [ ((n, g, g, apAge ap', BranchNode), tp, ap') | n <- bs ]
+        ss       = [ ((n, g, g, apAge ap', BranchNode), tp, ap') | n <- bs ]
         bs       = newBranchNodes tp (p' .+^ v', v')
-        ap'      = subYear ap
+        ap'      = adjustAge 1 ap
         (p', v') = aboveGround (p, v) 
-        g        = girth (apAge ap' - 1) (tpBranchGirth tp)
+        g        = tpBranchGirth tp
 
 whorl :: P3 -> TreeParams -> AgeParams -> [Seed]
 whorl p tp ap@(AgeParams age tbai phase) = ss
@@ -275,8 +332,8 @@ whorl p tp ap@(AgeParams age tbai phase) = ss
     pt i = r3 (cos (theta i), sin (theta i), cos (phi i)) ^* lr
          where theta i = fromIntegral i * tau / fromIntegral nb + phase
                phi i   = as !! ((i + tbai) `mod` (length as))
-    g0   = girth (age - 1) (tpBranchGirth tp)
-    ss   = [ (((p, (pt i)), g0, g0, age, BranchNode), tp, ap) | i <- [0 .. nb - 1]]
+    g    = tpBranchGirth tp
+    ss   = [ (((p, (pt i)), g, g, age, BranchNode), tp, ap) | i <- [0 .. nb - 1]]
 
 
 -- Next year's subbranches continue straight, to the left and to the right. The straight
@@ -300,9 +357,6 @@ newBranchNodes tp (p, v) = [(p,l), (p,c), (p,r)]
           c      = v                         # scale bblr
 
 -- Helper functions for building the tree:
-
-subYear :: AgeParams -> AgeParams
-subYear = adjustAge (-1)
 
 adjustAge :: Double -> AgeParams -> AgeParams
 adjustAge da (AgeParams a i p) = AgeParams a' i p 

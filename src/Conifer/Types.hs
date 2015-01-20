@@ -26,17 +26,26 @@ import qualified Data.String as S
 -- the location, the girth at its origin (the location of which is implicit),
 -- the girth at its location, and its age.
 
-data NodeType = SeedNode | TrunkNode | BranchNode deriving (Show)
+data NodeType = TrunkNode | BranchNode deriving (Show)
 
-type TreeInfo a = (a, Double, Double, Double, NodeType)
+type Age       = Double
+type Girth     = Double
+type GirthSpec = Double
+
+type SpecInfo a = (a, GirthSpec, GirthSpec, Age, NodeType)
+type TreeInfo a = (a, Girth, Girth, Age, NodeType)
 
 -- We specialize the types for the phases of tree development.
--- The tree grows as type Tree3 (nodes in 3D), is projected to
--- Tree2 (nodes in 2D) before being flattened to a list of
+-- The tree grows as type TreeSpec3, in which the nodes have
+-- length and direction, but unknown girth. After the tree has
+-- been pruned, its trunk and branch girths can be calculated
+-- and saved as type Tree3 (nodes in 3D). It can then be projected
+-- to Tree2 (nodes in 2D) before being flattened to a list of
 -- primitive drawing elements.
 
-type Tree3 = Tree (TreeInfo (P3, R3))
-type Tree2 = Tree (TreeInfo (P2, R2))
+type TreeSpec3 = Tree (SpecInfo (P3, R3))
+type Tree3     = Tree (TreeInfo (P3, R3))
+type Tree2     = Tree (TreeInfo (P2, R2))
 
 -- The tree is ultimately converted to context-free drawing instructions
 -- which when carried out produce diagrams.
@@ -96,13 +105,13 @@ instance Default TreeParams where
 -- whorl, and the next trunk branch angle to use.
 
 data AgeParams = AgeParams {
-      apAge                         :: Double
+      apAge                         :: Age
     , apTrunkBranchAngleIndex       :: Int
     , apWhorlPhase                  :: Double
     } deriving (Show, Eq)
 
 -- A tree is unfolded from a seed.
-type Seed = (TreeInfo (P3, R3), TreeParams, AgeParams)
+type Seed = (SpecInfo (P3, R3), TreeParams, AgeParams)
 
 -- The tree can be optionally decorated with needles, in which case the
 -- needles can be customized in various ways.
