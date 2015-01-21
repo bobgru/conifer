@@ -62,8 +62,8 @@ instance Mainable (FromUserData (TreeArgs -> Diagram SVG R2)) where
 
 withNeedles = True
 
-needlePolicy :: Double -> Bool
-needlePolicy age = age <= 2.0
+needlePolicy :: Age -> Age -> Bool
+needlePolicy ageTree ageNode = ageTree - ageNode <= 2.0
 
 np :: NeedleParams
 np = def {
@@ -97,5 +97,5 @@ main   = mainWith $ FromUserData $ treeFromUserInput
 treeFromUserInput (tp, ap, n) = tree tp ap # render' n # centerXY # pad 1.2
 
 render' withNeedles = if withNeedles 
-                          then renderTreeWithNeedles needlePolicy np
+                          then renderTreeWithNeedles (needlePolicy (apAge ap)) np
                           else renderTree
