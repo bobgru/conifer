@@ -61,7 +61,7 @@ circleAxes =  fromOffsets [unit_X, unitX ^* 2]
 circularArc = arc (angleDir beginAngle) endAngle # lwG 0.2
 
 beginAngle = (rotate (1/8 @@ turn) (unitX :: V2 Double)) ^. _theta
-endAngle   = 1/4 @@ turn :: Angle Double
+endAngle   = 1/8 @@ turn :: Angle Double
 
 -- grid
 --  :: (Semigroup b, TrailLike b, Alignable b, Transformable b,
