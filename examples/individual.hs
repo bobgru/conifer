@@ -8,10 +8,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Main where
 import Conifer
 import Conifer.Types
-import Data.Default.Class
 
 -- The following all relate to the addition of the -u command line option
 -- which allows data to be input from stdin.
@@ -20,6 +20,7 @@ import Diagrams.Prelude hiding ((<>), value)
 import Diagrams.Backend.CmdLine
 import Diagrams.Backend.SVG.CmdLine
 import Options.Applicative
+import Data.Monoid ((<>))
 
 -- Run the program with dist/build/individual/individual -o individual.svg -w 400
 -- where -o sets the output filename, and -w sets the diagram width.
@@ -30,7 +31,7 @@ import Options.Applicative
 --
 -- Implement UserData Option
 
-newtype FromUserData a = FromUserData a
+newtype FromUserData = FromUserData (TreeArgs -> Diagram SVG)
 type TreeArgs = (TreeParams, AgeParams, Bool)
 data UserDataOpts = UserDataOpts Bool
 
@@ -40,13 +41,13 @@ instance Parseable UserDataOpts where
                     <> short 'u'
                     <> help "Get user data from STDIN")
 
-instance Mainable (FromUserData (TreeArgs -> Diagram SVG R2)) where
-    type MainOpts (FromUserData (TreeArgs -> Diagram SVG R2)) =
-        (MainOpts (Diagram SVG R2), UserDataOpts)
+instance Mainable FromUserData where
+    type MainOpts FromUserData =
+        (MainOpts (Diagram SVG), UserDataOpts)
 
     mainRender (opts, UserDataOpts b) (FromUserData d) =
         do (tp', ap', n) <- case b of
-               False     -> return (tp, ap, False)
+               False     -> return (tp, ap, b)
                otherwise -> do
                    input <- getContents
                    case getUserDataFromJSON input of
@@ -68,7 +69,7 @@ needlePolicy ageTree ageNode = ageTree - ageNode <= 2.0
 np :: NeedleParams
 np = def {
       needleLength = 0.05
-    , needleAngle  = tau / 10
+    , needleAngle  = 1 / 10 @@ turn
     , needleIncr   = 0.05
     }
 
@@ -83,7 +84,7 @@ tp = def {
     , tpBranchGirth                 = 1.0
     , tpBranchBranchLengthRatio     = 1.0
     , tpBranchBranchLengthRatio2    = 1.0
-    , tpBranchBranchAngle           = tau / 6
+    , tpBranchBranchAngle           = 1/6 @@ turn
     }
 
 ap :: AgeParams
@@ -92,7 +93,7 @@ ap = AgeParams 3 0 (tau / 3)
 
 -- Main Program
 
-main   = mainWith $ FromUserData $ treeFromUserInput
+main   = mainWith $ FromUserData treeFromUserInput
 
 treeFromUserInput (tp, ap, n) = tree tp ap # render' n # centerXY # pad 1.2
 

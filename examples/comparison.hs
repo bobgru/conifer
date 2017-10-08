@@ -3,10 +3,10 @@
 -- This program draws an array of conifers with variations of parameters.
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts #-}
 import Conifer
 import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
-import Data.Default.Class
 
 -- Main Program
 --
@@ -50,7 +50,7 @@ chunk n xs = take n xs : chunk n (drop n xs)
 -- An arrangement specialized for all our samples, which are 3 x 3.
 
 withGrid   = gridLayout 3 bg
-    where bg = square 1 # lw 0.1 # lc black # centerXY # pad 1.1
+    where bg = square 1 # lwG 0.1 # lc black # centerXY # pad 1.1
 
 -- Helper Functions
 --
@@ -73,7 +73,7 @@ tp = def {
     , tpBranchGirth                 = 1.0
     , tpBranchBranchLengthRatio     = 1.0
     , tpBranchBranchLengthRatio2    = 1.2
-    , tpBranchBranchAngle           = tau / 8
+    , tpBranchBranchAngle           = 1/8 @@ turn
     }
 
 -- Trunk length vs. whorls per year
@@ -118,7 +118,7 @@ branchLength_branchAngle = trees
                         , tpWhorlsPerYear               = 13
                         , tpWhorlSize                   = 5
                         , tpBranchBranchLengthRatio2    = x
-                        , tpBranchBranchAngle           = y
+                        , tpBranchBranchAngle           = y @@ rad
                         }
           trees = [ treeAtAge (f tp x y) 3 (tau/2) | x <- [ 0.8, 1.2, 1.4 ]
                                                    , y <- [ tau/5, tau/8, tau/11 ] ]
@@ -133,7 +133,7 @@ centerBranchLength_sideBranchLength = trees
                         , tpWhorlSize                   = 5
                         , tpBranchBranchLengthRatio     = x
                         , tpBranchBranchLengthRatio2    = y
-                        , tpBranchBranchAngle           = tau/5
+                        , tpBranchBranchAngle           = tau/5 @@ rad
                         }
           trees = [ treeAtAge (f tp x y) 3 (tau/2) | x <- [ 0.8, 1.0, 1.2 ]
                                                    , y <- [ 0.8, 1.2, 1.4 ] ]

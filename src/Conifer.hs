@@ -14,6 +14,8 @@
 -- a conifer.
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
 module Conifer ( Tree
                , renderTree, renderTreeWithNeedles
                , TreeParams(..), AgeParams(..), NeedleParams(..)
@@ -24,17 +26,16 @@ module Conifer ( Tree
 where 
 
 import Conifer.Types
-import Data.Cross
-import Data.Default.Class
 import Data.Tree(Tree(..), flatten, unfoldTree)
 import Diagrams.Backend.SVG
 import Diagrams.Coordinates
-import Diagrams.Prelude hiding (angleBetween, rotationAbout, direction)
+import Diagrams.Prelude hiding (rotationAbout)
 import Diagrams.ThreeD.Transform
 import Diagrams.ThreeD.Types
 import Diagrams.ThreeD.Vector
-import Diagrams.TwoD.Transform.ScaleInv
-import Diagrams.TwoD.Vector (angleBetween)
+import Diagrams.Transform.ScaleInv
+import Diagrams.Angle (angleBetween)
+import Linear.V3 (cross)
 
 -- Creating a Drawing of a Tree
 --
@@ -43,10 +44,10 @@ import Diagrams.TwoD.Vector (angleBetween)
 -- are convenient for further processing. The option of drawing with or without
 -- needles is exposed as different pipelines.
 
-renderTree :: Tree3 -> Diagram B R2
+renderTree :: Tree3 -> Diagram B
 renderTree = draw . renderTreeToPrim
 
-renderTreeWithNeedles :: (Double -> Bool) -> NeedleParams -> Tree3 -> Diagram B R2
+renderTreeWithNeedles :: (Double -> Bool) -> NeedleParams -> Tree3 -> Diagram B
 renderTreeWithNeedles f np = draw' np . withNeedles f . renderTreeToPrim
 
 renderTreeToPrim :: Tree3 -> [TreePrim]
@@ -60,7 +61,7 @@ renderTreeToPrim = toPrim . projectXZ
 -- correctly.
 
 -- We should never see the base of a branch below ground.
-aboveGround :: (P3, R3) -> (P3, R3)
+aboveGround :: (P3 Double, V3 Double) -> (P3 Double, V3 Double)
 aboveGround (p, v) = 
     if p_z > 0 && p_z' > 0
         then (p, v)                     -- above ground so no change
@@ -78,7 +79,7 @@ aboveGround (p, v) =
         s   = c' / c
         c   = sqrt (v_x * v_x + v_y * v_y)
         c'  = sqrt (m_v * m_v - p_z * p_z)
-        m_v = magnitude v
+        m_v = norm v
         
 -- Projecting the Tree onto 2D
 --
@@ -88,13 +89,13 @@ aboveGround (p, v) =
 projectXZ :: Tree3 -> Tree2
 projectXZ = fmap infoXZ
 
-infoXZ :: TreeInfo (P3,R3) -> TreeInfo (P2,R2)
+infoXZ :: TreeInfo (P3 Double,V3 Double) -> TreeInfo (P2 Double,V2 Double)
 infoXZ ((p,v), g0, g1, a, nt) = ((pxz p,rxz v), g0, g1, a, nt)
 
-pxz :: P3 -> P2
+pxz :: P3 Double -> P2 Double
 pxz p = p2 (x, z) where (x, _, z) = unp3 p
 
-rxz :: R3 -> R2
+rxz :: V3 Double -> V2 Double
 rxz r = r2 (x, z) where (x, _, z) = unr3 r
 
 -- Reducing the Tree to Primitives
@@ -105,7 +106,7 @@ rxz r = r2 (x, z) where (x, _, z) = unr3 r
 toPrim :: Tree2 -> [TreePrim]
 toPrim = flatten . fmap treeToPrim
 
-treeToPrim :: TreeInfo (P2,R2) -> TreePrim
+treeToPrim :: TreeInfo (P2 Double,V2 Double) -> TreePrim
 treeToPrim ((p,v), g0, g1, a, _) = if g0 < 0 then tip else node
     where tip  = Tip p (p .+^ v) a
           node = Trunk p (p .+^ v) g0 g1 a
@@ -134,13 +135,13 @@ toNeedles p                   = p
 -- Execute the drawing instructions as applications of functions from
 -- the diagrams package, producing a diagram as output.
 
-draw :: [TreePrim] -> Diagram B R2
+draw :: [TreePrim] -> Diagram B
 draw = draw' def
 
-draw' :: NeedleParams -> [TreePrim] -> Diagram B R2
+draw' :: NeedleParams -> [TreePrim] -> Diagram B
 draw' np = mconcat . map (drawPrim np)
 
-drawPrim :: NeedleParams -> TreePrim -> Diagram B R2
+drawPrim :: NeedleParams -> TreePrim -> Diagram B
 drawPrim _  (Trunk p0 p1 g0 g1 _) = drawTrunk   p0 p1 g0 g1
 drawPrim _  (Tip p0 p1 _)         = drawTip     p0 p1
 drawPrim np (Needles p0 p1)       = drawNeedles p0 p1 np
@@ -148,13 +149,13 @@ drawPrim np (Needles p0 p1)       = drawNeedles p0 p1 np
 -- Draw a section of trunk or branch as a trapezoid with the
 -- correct girths at each end.
 
-drawTrunk :: P2 -> P2 -> Double -> Double -> Diagram B R2
+drawTrunk :: P2 Double -> P2 Double -> Double -> Double -> Diagram B
 drawTrunk p0 p1 g0 g1 = place trunk p0
     where trunk = (closeLine . lineFromVertices) [ p0, a, b, c, d ]
                   # strokeLoop 
                   # fc black 
-                  # lw 0.01 
-          n = (p1 .-. p0) # rotateBy (1/4) # normalized
+                  # lwG 0.01 
+          n = (p1 .-. p0) # rotateBy (1/4) # signorm
           g0_2 = g0 / 2
           g1_2 = g1 / 2
           a = p0 .-^ (g0_2 *^ n)
@@ -162,24 +163,24 @@ drawTrunk p0 p1 g0 g1 = place trunk p0
           c = p1 .+^ (g1_2 *^ n)
           d = p0 .+^ (g0_2 *^ n)
 
-drawTip :: P2 -> P2 -> Diagram B R2 
-drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lw 0.01)]
+drawTip :: P2 Double -> P2 Double -> Diagram B
+drawTip p0 p1 = position [(p0, fromOffsets [ p1 .-. p0 ] # lwG 0.01)]
 
-drawNeedles :: P2 -> P2 -> NeedleParams -> Diagram B R2
+drawNeedles :: P2 Double -> P2 Double -> NeedleParams -> Diagram B
 drawNeedles p0 p1 np = place (scaleInv ns Diagrams.Prelude.unitX # _scaleInvObj) p0
-    where ns = needles numNeedles (magnitude v) nLength nAngle # rotate (-th)
-          th = Diagrams.TwoD.Vector.angleBetween v Diagrams.Prelude.unitX :: Rad
+    where ns = needles numNeedles (norm v) nLength nAngle # rotate (negated th)
+          th = angleBetween v Diagrams.Prelude.unitX
           v  = p1 .-. p0
-          numNeedles   = floor (magnitude v / nIncr) :: Int
+          numNeedles   = floor (norm v / nIncr) :: Int
           nLength = needleLength np
           nAngle  = needleAngle np
           nIncr   = needleIncr np
 
-needle :: Double -> Rad -> Diagram B R2
-needle l th =  d # rotate th <> d # rotate (-th)
+needle :: Double -> Angle Double -> Diagram B
+needle l th =  d # rotate th <> d # rotate (negated th)
     where d = fromOffsets [Diagrams.Prelude.unitX ^* l]
 
-needles :: Int -> Double -> Double -> Rad -> Diagram B R2
+needles :: Int -> Double -> Double -> Angle Double -> Diagram B
 needles n l nl na = position (zip ps (repeat (needle nl na)))
     where ps = map p2 [(x,0)|x <- [0, dx .. l - dx]]
           dx = l / fromIntegral (n + 1)
@@ -212,15 +213,15 @@ pruneByAge a (Node n@((p, v), _, _, a', _) ns)
 
 pruneByScale :: Double -> TreeSpec3 -> TreeSpec3
 pruneByScale s (Node n@((_, v), _, _, _, _) ns)
-    | magnitude v > s  =  Node n (map (pruneByScale s) ns)
-    | otherwise        =  Node n []
+    | norm v > s  =  Node n (map (pruneByScale s) ns)
+    | otherwise   =  Node n []
 
 scaleTips :: Age -> TreeParams -> TreeSpec3 -> TreeSpec3
 scaleTips a tp = fmap (scaleTip a tp)
 
 -- Tips are recorded as though grown in full-year increments. They
 -- are trimmed to partial-year growth here.
-scaleTip :: Age -> TreeParams -> SpecInfo (P3, R3) -> SpecInfo (P3, R3)
+scaleTip :: Age -> TreeParams -> SpecInfo (P3 Double, V3 Double) -> SpecInfo (P3 Double, V3 Double)
 scaleTip a tp  n@((p, v), _, _, a', TrunkNode) = n'
     where
         n'  = if isTip a a' then (pv, -1, -1, a - a' + 1, TrunkNode) else n
@@ -246,7 +247,7 @@ calcGirths :: Age -> TreeParams -> TreeSpec3 -> Tree3
 calcGirths a tp = fixupTipGirths . fmap (calcGirth a tp)
 
 -- Girths are recorded as the ratios to scale by age, which we do here.
-calcGirth :: Age -> TreeParams -> SpecInfo (P3, R3) -> TreeInfo (P3, R3)
+calcGirth :: Age -> TreeParams -> SpecInfo (P3 Double, V3 Double) -> TreeInfo (P3 Double, V3 Double)
 calcGirth a tp n@(pv, g, g', a', BranchNode)
     | g == (-1) || g' == (-1)  =  n
     | otherwise                =  (pv, gg, gg, a', BranchNode)
@@ -273,7 +274,7 @@ seed tp ap = (ti, tp, ap')
     where
         ap'     = ap { apAge = 0 }
         ti      = ((p, v), g, g', apAge ap', TrunkNode)
-        (p, v)  = (origin::P3, unitZ ^* (lpy * ageIncr))
+        (p, v)  = (origin::P3 Double, unitZ ^* (lpy * ageIncr))
         lpy     = tpTrunkLengthIncrementPerYear tp
         ageIncr = 1 / fromIntegral (tpWhorlsPerYear tp)
         tg      = tpTrunkGirth tp
@@ -291,7 +292,7 @@ seed tp ap = (ti, tp, ap')
 -- and the next level of branching. If a seed's age is less than one unit of growth,
 -- no more seeds are produced by it.
 
-growTree :: Seed -> (SpecInfo (P3, R3), [Seed])
+growTree :: Seed -> (SpecInfo (P3 Double, V3 Double), [Seed])
 growTree (ti@((p, v), _, _, _, TrunkNode), tp, ap)  = (ti, t:ws)
     where
         ageIncr = 1 / fromIntegral wpy
@@ -322,13 +323,13 @@ growTree (ti@((p, v), _, _, _, BranchNode), tp, ap)  = (ti, ss)
         (p', v') = aboveGround (p, v) 
         g        = tpBranchGirth tp
 
-whorl :: P3 -> TreeParams -> AgeParams -> [Seed]
+whorl :: P3 Double -> TreeParams -> AgeParams -> [Seed]
 whorl p tp ap@(AgeParams age tbai phase) = ss
   where
     lr   = tpTrunkBranchLengthRatio tp
     nb   = tpWhorlSize tp
     as   = tpTrunkBranchAngles tp
-    pt :: Int -> R3
+    pt :: Int -> V3 Double
     pt i = r3 (cos (theta i), sin (theta i), cos (phi i)) ^* lr
          where theta i = fromIntegral i * tau / fromIntegral nb + phase
                phi i   = as !! ((i + tbai) `mod` (length as))
@@ -340,21 +341,21 @@ whorl p tp ap@(AgeParams age tbai phase) = ss
 -- subbranch grows at a possibly different rate from the side subbranches. Scale the
 -- branches to their full length. If they are leaves, they will be scaled back.
 
-newBranchNodes :: TreeParams -> (P3, R3) -> [(P3, R3)]
+newBranchNodes :: TreeParams -> (P3 Double, V3 Double) -> [(P3 Double, V3 Double)]
 newBranchNodes tp (p, v) = [(p,l), (p,c), (p,r)]
     where bba    = tpBranchBranchAngle tp
           bblr   = tpBranchBranchLengthRatio tp
           bblr2  = tpBranchBranchLengthRatio2 tp
 
-          angle  = 1/4 - (asTurn . Diagrams.ThreeD.Vector.angleBetween unitZ) v
-          zAxis  = (asSpherical . direction) unitZ
-          nAxis  = (asSpherical . direction) (cross3 unitZ v)
+          angle  = (1/4 @@ turn) ^-^ (angleBetween unitZ v)
+          zAxis  = direction unitZ
+          nAxis  = direction (cross unitZ v)
           t1     = rotationAbout origin nAxis angle
           t2 a   = conjugate t1 (rotationAbout origin zAxis a)
 
-          l      = v # transform (t2   bba)  # scale bblr2
-          r      = v # transform (t2 (-bba)) # scale bblr2
-          c      = v                         # scale bblr
+          l      = v # transform (t2          bba)  # scale bblr2
+          r      = v # transform (t2 (negated bba)) # scale bblr2
+          c      = v                                # scale bblr
 
 -- Helper functions for building the tree:
 

@@ -32,7 +32,7 @@ getUserDataFromJSON_None    = actual @?= expected
                          , udBranchGirth                 = Nothing
                          , udBranchBranchLengthRatio     = Nothing
                          , udBranchBranchLengthRatio2    = Nothing
---                         , udBranchBranchAngle           :: Rad
+--                         , udBranchBranchAngle           :: Angle Double
                          }
           json = "\
 \{}"
@@ -51,7 +51,7 @@ getUserDataFromJSON_Age    = actual @?= expected
                          , udBranchGirth                 = Nothing
                          , udBranchBranchLengthRatio     = Nothing
                          , udBranchBranchLengthRatio2    = Nothing
---                         , udBranchBranchAngle           :: Rad
+--                         , udBranchBranchAngle           :: Angle Double
                          }
           json = "\
 \{\"age\":3}"
@@ -70,7 +70,7 @@ getUserDataFromJSON_All    = actual @?= expected
                          , udBranchGirth                 = Just 1.0
                          , udBranchBranchLengthRatio     = Just 1.0
                          , udBranchBranchLengthRatio2    = Just 1.0
---                         , udBranchBranchAngle           :: Rad
+--                         , udBranchBranchAngle           :: Angle Double
                          }
           json = "\
 \{\"udTrunkGirth\":5,\"udWhorlsPerYear\":9,\"udTrunkBranchAngles\":[0.698,0.898,1.31,0.967],\"udTrunkBranchLengthRatio\":0.6,\"udBranchGirth\":1,\"udWhorlSize\":7,\"udBranchBranchLengthRatio\":1,\"udBranchBranchLengthRatio2\":1,\"age\":3,\"needles\":false,\"udTrunkLengthIncrementPerYear\":1.4}"
@@ -90,7 +90,7 @@ argsFromInput_NoChange    = actual @?= expected
                          , udBranchGirth                 = Nothing
                          , udBranchBranchLengthRatio     = Nothing
                          , udBranchBranchLengthRatio2    = Nothing
---                         , udBranchBranchAngle           :: Rad
+--                         , udBranchBranchAngle           :: Angle Double
                          }
           tp = TreeParams {
                            tpTrunkLengthIncrementPerYear = 1.4
@@ -125,7 +125,7 @@ argsFromInput_ChangeAll    = actual @?= expected
                          , udBranchGirth                 = Just 1.2
                          , udBranchBranchLengthRatio     = Just 1.3
                          , udBranchBranchLengthRatio2    = Just 1.4
---                         , udBranchBranchAngle           :: Rad
+--                         , udBranchBranchAngle           :: Angle Double
                          }
           tp = TreeParams {
                            tpTrunkLengthIncrementPerYear = 1.4

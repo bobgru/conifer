@@ -1,11 +1,10 @@
 {-# LANGUAGE NoMonomorphismRestriction, OverloadedStrings #-}
 module Conifer.Types where
 
-import Data.Default.Class
 import Data.Maybe
 import Data.Tree(Tree(..))
 import Diagrams.Coordinates
-import Diagrams.Prelude -- hiding (angleBetween, rotationAbout, direction)
+import Diagrams.Prelude -- hiding (rotationAbout, direction)
 import Diagrams.ThreeD.Types
 import Diagrams.ThreeD.Vector
 
@@ -43,9 +42,9 @@ type TreeInfo a = (a, Girth, Girth, Age, NodeType)
 -- to Tree2 (nodes in 2D) before being flattened to a list of
 -- primitive drawing elements.
 
-type TreeSpec3 = Tree (SpecInfo (P3, R3))
-type Tree3     = Tree (TreeInfo (P3, R3))
-type Tree2     = Tree (TreeInfo (P2, R2))
+type TreeSpec3 = Tree (SpecInfo (P3 Double, V3 Double))
+type Tree3     = Tree (TreeInfo (P3 Double, V3 Double))
+type Tree2     = Tree (TreeInfo (P2 Double, V2 Double))
 
 -- The tree is ultimately converted to context-free drawing instructions
 -- which when carried out produce diagrams.
@@ -56,9 +55,9 @@ type Tree2     = Tree (TreeInfo (P2, R2))
 --   Needles indicates decoration with needles between points p0 and p1.
 --   Trunk and Tip carry age as a hint for when needles should be drawn.
 
-data TreePrim = Trunk   { p0::P2, p1::P2, g0::Double, g1::Double, age::Double }
-              | Tip     { p0::P2, p1::P2, age::Double }
-              | Needles { p0::P2, p1::P2 }
+data TreePrim = Trunk   { p0::P2 Double, p1::P2 Double, g0::Double, g1::Double, age::Double }
+              | Tip     { p0::P2 Double, p1::P2 Double, age::Double }
+              | Needles { p0::P2 Double, p1::P2 Double }
 
 -- Specifying a Conifer
 --
@@ -84,7 +83,7 @@ data TreeParams = TreeParams {
     , tpBranchGirth                 :: Double
     , tpBranchBranchLengthRatio     :: Double
     , tpBranchBranchLengthRatio2    :: Double
-    , tpBranchBranchAngle           :: Rad
+    , tpBranchBranchAngle           :: Angle Double
     } deriving (Show, Eq)
 
 instance Default TreeParams where
@@ -98,7 +97,7 @@ instance Default TreeParams where
     , tpBranchGirth                 = 1.0
     , tpBranchBranchLengthRatio     = 0.8
     , tpBranchBranchLengthRatio2    = 0.8
-    , tpBranchBranchAngle           = tau / 6
+    , tpBranchBranchAngle           = 1 / 6 @@ turn
     }
 
 -- The mutable state during a tree's growth consists of its age, the rotational phase of the next
@@ -111,21 +110,21 @@ data AgeParams = AgeParams {
     } deriving (Show, Eq)
 
 -- A tree is unfolded from a seed.
-type Seed = (SpecInfo (P3, R3), TreeParams, AgeParams)
+type Seed = (SpecInfo (P3 Double, V3 Double), TreeParams, AgeParams)
 
 -- The tree can be optionally decorated with needles, in which case the
 -- needles can be customized in various ways.
 
 data NeedleParams = NeedleParams {
       needleLength :: Double
-    , needleAngle  :: Rad
+    , needleAngle  :: Angle Double
     , needleIncr   :: Double
     }
 
 instance Default NeedleParams where
     def = NeedleParams {
       needleLength = 0.05
-    , needleAngle  = tau / 10
+    , needleAngle  = 1 / 10 @@ turn
     , needleIncr   = 0.05
     }
 
@@ -144,7 +143,7 @@ data UserData = UD {
     , udBranchGirth                 :: Maybe Double
     , udBranchBranchLengthRatio     :: Maybe Double
     , udBranchBranchLengthRatio2    :: Maybe Double
---    , udBranchBranchAngle           :: Maybe Rad
+--    , udBranchBranchAngle           :: Maybe (Angle Double)
     } deriving (Show, Eq)
 
 instance ToJSON UserData where
@@ -176,7 +175,7 @@ ud = UD {
     , udBranchGirth                 = Just 1.0
     , udBranchBranchLengthRatio     = Just 1.0
     , udBranchBranchLengthRatio2    = Just 1.0
---    , udBranchBranchAngle           :: Rad
+--    , udBranchBranchAngle           :: Angle Double
     }
 
 
